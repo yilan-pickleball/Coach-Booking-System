@@ -125,20 +125,94 @@ function initCalendar() {
       });
     },
 
+    // --- 替換 initCalendar 內的 dateClick 與 eventClick ---
+
+    // 點擊空白時段 (總教練派課 - 支援自訂時間)
+    dateClick: function(info) {
+      if (currentRole !== 'admin') return; 
+      
+      // 自動抓取點擊的日期與預設時間
+      let dateStr = info.dateStr;
+      let defaultStart = "14:00";
+      let defaultEnd = "16:00";
+      
+      // 如果點擊的是週曆(帶有具體時間)，自動帶入點擊的時間
+      if (dateStr.includes('T')) {
+        const d = new Date(dateStr);
+        defaultStart = d.toTimeString().substring(0, 5);
+        const endD = new Date(d.getTime() + 2 * 60 * 60 * 1000); // 預設排2小時
+        defaultEnd = endD.toTimeString().substring(0, 5);
+        dateStr = dateStr.split('T')[0];
+      }
+
+      Swal.fire({
+        title: '新增課程',
+        html: `
+          <div class="mb-2 text-left text-sm font-bold">日期</div>
+          <input type="date" id="swal-date" class="swal2-input !mt-0" value="${dateStr}">
+          
+          <div class="mt-4 mb-2 text-left text-sm font-bold">時間 (起 - 迄)</div>
+          <div class="flex items-center justify-between gap-2">
+            <input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}">
+            <span>至</span>
+            <input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}">
+          </div>
+          
+          <div class="mt-4 mb-2 text-left text-sm font-bold">地點</div>
+          <input type="text" id="swal-loc" class="swal2-input !mt-0" placeholder="例：宜蘭國運中心">
+        `,
+        confirmButtonText: '發布課程', 
+        showCancelButton: true,
+        preConfirm: () => {
+          return {
+            date: document.getElementById('swal-date').value,
+            start: document.getElementById('swal-start').value,
+            end: document.getElementById('swal-end').value,
+            loc: document.getElementById('swal-loc').value
+          };
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const v = result.value;
+          if(!v.date || !v.start || !v.end || !v.loc) return Swal.fire('錯誤', '所有欄位皆為必填！', 'error');
+          createSlot(v.date, `${v.start}-${v.end}`, v.loc);
+        }
+      });
+    },
+
+    // 點擊現有課程 (包含刪除與取消邏輯)
     eventClick: function(info) {
       const ev = info.event;
       if (currentRole === 'coach') {
         if (ev.extendedProps.status === 'Open') {
           Swal.fire({
-            title: '確認接課？', text: `地點：${ev.extendedProps.location}`, icon: 'question',
-            showCancelButton: true, confirmButtonText: '我要接！', cancelButtonText: '取消'
+            title: '確認接課？', text: `地點：${ev.extendedProps.location}\n時間：${ev.start.toTimeString().substring(0,5)} - ${ev.end.toTimeString().substring(0,5)}`, icon: 'question',
+            showCancelButton: true, confirmButtonText: '我要接！', cancelButtonText: '關閉'
           }).then((result) => { if (result.isConfirmed) claimSlot(ev.id); });
         } else if (ev.extendedProps.assignedToMe) {
-          Swal.fire('這是您的課', '點擊確定前往簽到', 'info');
+          Swal.fire({
+            title: '您的課程', text: '請選擇要執行的動作', icon: 'info',
+            showDenyButton: true, showCancelButton: true,
+            confirmButtonText: '✅ 前往簽到', denyButtonText: '❌ 取消接課', cancelButtonText: '關閉'
+          }).then((result) => {
+            if (result.isConfirmed) {
+              Swal.fire('提示', '準備帶入簽到系統 (BookingID: '+ ev.id +')', 'success');
+            } else if (result.isDenied) {
+              cancelClaim(ev.id);
+            }
+          });
         }
       } else {
-         Swal.fire('課程資訊', `地點：${ev.extendedProps.location}<br>狀態：${ev.extendedProps.status}`, 'info');
+         // 總教練視角：可刪除課程
+         Swal.fire({
+           title: '課程資訊', html: `地點：${ev.extendedProps.location}<br>狀態：${ev.extendedProps.status === 'Claimed' ? '已被教練認領' : '等待接課中'}`, icon: 'info',
+           showDenyButton: true, showCancelButton: true, showConfirmButton: false,
+           denyButtonText: '🗑️ 刪除此課程', cancelButtonText: '關閉'
+         }).then((result) => {
+           if (result.isDenied) deleteSlot(ev.id);
+         });
       }
+    }
     }
   });
   calendar.render();
@@ -156,6 +230,17 @@ function claimSlot(slotId) {
   .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('接課成功', '您已成功認領！', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
 }
 
+function deleteSlot(slotId) {
+  showLoader();
+  fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteSlot', data: { SlotID: slotId } }) })
+  .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('已刪除', '課程已移除', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
+}
+
+function cancelClaim(slotId) {
+  showLoader();
+  fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'cancelClaim', data: { SlotID: slotId, CoachID: myLineId } }) })
+  .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('已取消', '此課程已退回開放狀態', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
+}
 function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
 function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
     
