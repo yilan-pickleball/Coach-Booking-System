@@ -41,209 +41,186 @@
     <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
   </div>
 
-  <script>
-   
-    // 🔴 請填寫您剛剛 GAS 部署出來的網址
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec'; 
-const LIFF_ID = ''; 
-let myLineId = 'U_TEST_COACH_001'; 
-let currentRole = 'coach';
-let calendar;
+    <script>
+    // 🔴 您的 GAS 部署網址 (已經幫您保留)
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec'; 
+    const LIFF_ID = ''; 
+    let myLineId = 'U_TEST_COACH_001'; 
+    let currentRole = 'coach';
+    let calendar;
 
-document.addEventListener('DOMContentLoaded', function() { initCalendar(); });
+    document.addEventListener('DOMContentLoaded', function() { initCalendar(); });
 
-function changeRole() {
-  currentRole = document.getElementById('roleSelector').value;
-  myLineId = currentRole === 'admin' ? 'U_TEST_ADMIN_001' : 'U_TEST_COACH_001';
-  calendar.refetchEvents();
-}
+    function changeRole() {
+      currentRole = document.getElementById('roleSelector').value;
+      myLineId = currentRole === 'admin' ? 'U_TEST_ADMIN_001' : 'U_TEST_COACH_001';
+      calendar.refetchEvents();
+    }
 
-function initCalendar() {
-  var calendarEl = document.getElementById('calendar');
-  calendar = new FullCalendar.Calendar(calendarEl, {
-    initialView: 'timeGridWeek',
-    headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,timeGridWeek' },
-    locale: 'zh-tw', allDaySlot: false, slotMinTime: "08:00:00", slotMaxTime: "22:00:00",
-    
-    events: function(info, successCallback, failureCallback) {
-      showLoader();
-      fetch(GAS_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'getCalendarEvents', data: { LineID: myLineId, Role: currentRole } })
-      })
-      .then(response => response.text()) // 🌟 改變策略：先接收純文字，避免解析直接當機
-      .then(text => {
-        hideLoader();
-        try {
-          const res = JSON.parse(text); // 嘗試轉換為 JSON
-          if (res.status === 'success') {
-            const events = res.data.map(slot => {
-              const isClaimed = slot.Status === 'Claimed';
-              const dateStr = String(slot.Date).split('T')[0] || '2026-01-01';
-              const timeParts = String(slot.TimeRange).split('-');
-              return {
-                id: slot.SlotID, 
-                title: isClaimed ? '已認領' : '開放接課',
-                start: `${dateStr}T${timeParts[0] || '08:00'}`,
-                end: `${dateStr}T${timeParts[1] || '09:00'}`,
-                color: isClaimed ? '#9CA3AF' : '#10B981',
-                extendedProps: { location: slot.Location, status: slot.Status, assignedToMe: slot.AssignedCoachID === myLineId }
-              };
-            });
-            successCallback(events);
-          } else {
-            // 🌟 捕捉 GAS 內部錯誤 (例如找不到分頁)
-            Swal.fire('後端回報錯誤', res.message, 'error');
+    function initCalendar() {
+      var calendarEl = document.getElementById('calendar');
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek',
+        headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,timeGridWeek' },
+        locale: 'zh-tw', allDaySlot: false, slotMinTime: "08:00:00", slotMaxTime: "22:00:00",
+        
+        events: function(info, successCallback, failureCallback) {
+          showLoader();
+          fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'getCalendarEvents', data: { LineID: myLineId, Role: currentRole } })
+          })
+          .then(response => response.text())
+          .then(text => {
+            hideLoader();
+            try {
+              const res = JSON.parse(text);
+              if (res.status === 'success') {
+                const events = res.data.map(slot => {
+                  const isClaimed = slot.Status === 'Claimed';
+                  const dateStr = String(slot.Date).split('T')[0] || '2026-01-01';
+                  const timeParts = String(slot.TimeRange).split('-');
+                  return {
+                    id: slot.SlotID, 
+                    title: isClaimed ? '已認領' : '開放接課',
+                    start: `${dateStr}T${timeParts[0] || '08:00'}`,
+                    end: `${dateStr}T${timeParts[1] || '09:00'}`,
+                    color: isClaimed ? '#9CA3AF' : '#10B981',
+                    extendedProps: { location: slot.Location, status: slot.Status, assignedToMe: slot.AssignedCoachID === myLineId }
+                  };
+                });
+                successCallback(events);
+              } else {
+                Swal.fire('後端回報錯誤', res.message, 'error');
+                failureCallback();
+              }
+            } catch (e) {
+               console.error("Google 原始回傳內容:", text);
+               Swal.fire('資料格式異常', '請按 F12 打開 Console 查看詳細原始回傳內容', 'error');
+               failureCallback();
+            }
+          })
+          .catch(err => {
+            hideLoader();
+            Swal.fire('網路連線失敗', err.toString(), 'error');
             failureCallback();
+          });
+        },
+
+        // 點擊空白時段 (總教練派課 - 支援自訂時間)
+        dateClick: function(info) {
+          if (currentRole !== 'admin') return; 
+          
+          let dateStr = info.dateStr;
+          let defaultStart = "14:00";
+          let defaultEnd = "16:00";
+          
+          if (dateStr.includes('T')) {
+            const d = new Date(dateStr);
+            defaultStart = d.toTimeString().substring(0, 5);
+            const endD = new Date(d.getTime() + 2 * 60 * 60 * 1000); 
+            defaultEnd = endD.toTimeString().substring(0, 5);
+            dateStr = dateStr.split('T')[0];
           }
-        } catch (e) {
-           // 🌟 捕捉 Google 回傳 HTML (通常是權限或帳號衝突)
-           console.error("Google 原始回傳內容:", text);
-           Swal.fire('資料格式異常', '請按 F12 打開 Console 查看詳細原始回傳內容', 'error');
-           failureCallback();
-        }
-      })
-      .catch(err => {
-        // 🌟 捕捉純粹的網路或 CORS 阻擋錯誤
-        hideLoader();
-        Swal.fire('網路連線失敗', err.toString(), 'error');
-        failureCallback();
-      });
-    },
 
-    dateClick: function(info) {
-      if (currentRole !== 'admin') return; 
-      Swal.fire({
-        title: '新增待接案課程',
-        html: `<input type="text" id="swal-loc" class="swal2-input" placeholder="地點 (例：宜蘭國運中心)">`,
-        confirmButtonText: '發布課程', showCancelButton: true,
-        preConfirm: () => document.getElementById('swal-loc').value
-      }).then((result) => {
-        if (result.isConfirmed) {
-          createSlot(info.dateStr.split('T')[0], "14:00-16:00", result.value || '未指定地點');
-        }
-      });
-    },
-
-    // --- 替換 initCalendar 內的 dateClick 與 eventClick ---
-
-    // 點擊空白時段 (總教練派課 - 支援自訂時間)
-    dateClick: function(info) {
-      if (currentRole !== 'admin') return; 
-      
-      // 自動抓取點擊的日期與預設時間
-      let dateStr = info.dateStr;
-      let defaultStart = "14:00";
-      let defaultEnd = "16:00";
-      
-      // 如果點擊的是週曆(帶有具體時間)，自動帶入點擊的時間
-      if (dateStr.includes('T')) {
-        const d = new Date(dateStr);
-        defaultStart = d.toTimeString().substring(0, 5);
-        const endD = new Date(d.getTime() + 2 * 60 * 60 * 1000); // 預設排2小時
-        defaultEnd = endD.toTimeString().substring(0, 5);
-        dateStr = dateStr.split('T')[0];
-      }
-
-      Swal.fire({
-        title: '新增課程',
-        html: `
-          <div class="mb-2 text-left text-sm font-bold">日期</div>
-          <input type="date" id="swal-date" class="swal2-input !mt-0" value="${dateStr}">
-          
-          <div class="mt-4 mb-2 text-left text-sm font-bold">時間 (起 - 迄)</div>
-          <div class="flex items-center justify-between gap-2">
-            <input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}">
-            <span>至</span>
-            <input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}">
-          </div>
-          
-          <div class="mt-4 mb-2 text-left text-sm font-bold">地點</div>
-          <input type="text" id="swal-loc" class="swal2-input !mt-0" placeholder="例：宜蘭國運中心">
-        `,
-        confirmButtonText: '發布課程', 
-        showCancelButton: true,
-        preConfirm: () => {
-          return {
-            date: document.getElementById('swal-date').value,
-            start: document.getElementById('swal-start').value,
-            end: document.getElementById('swal-end').value,
-            loc: document.getElementById('swal-loc').value
-          };
-        }
-      }).then((result) => {
-        if (result.isConfirmed) {
-          const v = result.value;
-          if(!v.date || !v.start || !v.end || !v.loc) return Swal.fire('錯誤', '所有欄位皆為必填！', 'error');
-          createSlot(v.date, `${v.start}-${v.end}`, v.loc);
-        }
-      });
-    },
-
-    // 點擊現有課程 (包含刪除與取消邏輯)
-    eventClick: function(info) {
-      const ev = info.event;
-      if (currentRole === 'coach') {
-        if (ev.extendedProps.status === 'Open') {
           Swal.fire({
-            title: '確認接課？', text: `地點：${ev.extendedProps.location}\n時間：${ev.start.toTimeString().substring(0,5)} - ${ev.end.toTimeString().substring(0,5)}`, icon: 'question',
-            showCancelButton: true, confirmButtonText: '我要接！', cancelButtonText: '關閉'
-          }).then((result) => { if (result.isConfirmed) claimSlot(ev.id); });
-        } else if (ev.extendedProps.assignedToMe) {
-          Swal.fire({
-            title: '您的課程', text: '請選擇要執行的動作', icon: 'info',
-            showDenyButton: true, showCancelButton: true,
-            confirmButtonText: '✅ 前往簽到', denyButtonText: '❌ 取消接課', cancelButtonText: '關閉'
+            title: '新增課程',
+            html: `
+              <div class="mb-2 text-left text-sm font-bold">日期</div>
+              <input type="date" id="swal-date" class="swal2-input !mt-0" value="${dateStr}">
+              
+              <div class="mt-4 mb-2 text-left text-sm font-bold">時間 (起 - 迄)</div>
+              <div class="flex items-center justify-between gap-2">
+                <input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}">
+                <span>至</span>
+                <input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}">
+              </div>
+              
+              <div class="mt-4 mb-2 text-left text-sm font-bold">地點</div>
+              <input type="text" id="swal-loc" class="swal2-input !mt-0" placeholder="例：宜蘭國運中心">
+            `,
+            confirmButtonText: '發布課程', 
+            showCancelButton: true,
+            preConfirm: () => {
+              return {
+                date: document.getElementById('swal-date').value,
+                start: document.getElementById('swal-start').value,
+                end: document.getElementById('swal-end').value,
+                loc: document.getElementById('swal-loc').value
+              };
+            }
           }).then((result) => {
             if (result.isConfirmed) {
-              Swal.fire('提示', '準備帶入簽到系統 (BookingID: '+ ev.id +')', 'success');
-            } else if (result.isDenied) {
-              cancelClaim(ev.id);
+              const v = result.value;
+              if(!v.date || !v.start || !v.end || !v.loc) return Swal.fire('錯誤', '所有欄位皆為必填！', 'error');
+              createSlot(v.date, `${v.start}-${v.end}`, v.loc);
             }
           });
+        },
+
+        // 點擊現有課程 (包含刪除與取消邏輯)
+        eventClick: function(info) {
+          const ev = info.event;
+          if (currentRole === 'coach') {
+            if (ev.extendedProps.status === 'Open') {
+              Swal.fire({
+                title: '確認接課？', text: `地點：${ev.extendedProps.location}\n時間：${ev.start.toTimeString().substring(0,5)} - ${ev.end.toTimeString().substring(0,5)}`, icon: 'question',
+                showCancelButton: true, confirmButtonText: '我要接！', cancelButtonText: '關閉'
+              }).then((result) => { if (result.isConfirmed) claimSlot(ev.id); });
+            } else if (ev.extendedProps.assignedToMe) {
+              Swal.fire({
+                title: '您的課程', text: '請選擇要執行的動作', icon: 'info',
+                showDenyButton: true, showCancelButton: true,
+                confirmButtonText: '✅ 前往簽到', denyButtonText: '❌ 取消接課', cancelButtonText: '關閉'
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  Swal.fire('提示', '準備帶入簽到系統 (BookingID: '+ ev.id +')', 'success');
+                } else if (result.isDenied) {
+                  cancelClaim(ev.id);
+                }
+              });
+            }
+          } else {
+             // 總教練視角：可刪除課程
+             Swal.fire({
+               title: '課程資訊', html: `地點：${ev.extendedProps.location}<br>狀態：${ev.extendedProps.status === 'Claimed' ? '已被教練認領' : '等待接課中'}`, icon: 'info',
+               showDenyButton: true, showCancelButton: true, showConfirmButton: false,
+               denyButtonText: '🗑️ 刪除此課程', cancelButtonText: '關閉'
+             }).then((result) => {
+               if (result.isDenied) deleteSlot(ev.id);
+             });
+          }
         }
-      } else {
-         // 總教練視角：可刪除課程
-         Swal.fire({
-           title: '課程資訊', html: `地點：${ev.extendedProps.location}<br>狀態：${ev.extendedProps.status === 'Claimed' ? '已被教練認領' : '等待接課中'}`, icon: 'info',
-           showDenyButton: true, showCancelButton: true, showConfirmButton: false,
-           denyButtonText: '🗑️ 刪除此課程', cancelButtonText: '關閉'
-         }).then((result) => {
-           if (result.isDenied) deleteSlot(ev.id);
-         });
-      }
+      });
+      calendar.render();
     }
+
+    function createSlot(date, timeRange, location) {
+      showLoader();
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'createSlot', data: { Date: date, TimeRange: timeRange, Location: location, CreatedBy: myLineId } }) })
+      .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('成功', '課程已發布', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
     }
-  });
-  calendar.render();
-}
 
-function createSlot(date, timeRange, location) {
-  showLoader();
-  fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'createSlot', data: { Date: date, TimeRange: timeRange, Location: location, CreatedBy: myLineId } }) })
-  .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('成功', '課程已發布', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
-}
+    function claimSlot(slotId) {
+      showLoader();
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'claimSlot', data: { SlotID: slotId, CoachID: myLineId } }) })
+      .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('接課成功', '您已成功認領！', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
+    }
 
-function claimSlot(slotId) {
-  showLoader();
-  fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'claimSlot', data: { SlotID: slotId, CoachID: myLineId } }) })
-  .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('接課成功', '您已成功認領！', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
-}
+    function deleteSlot(slotId) {
+      showLoader();
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteSlot', data: { SlotID: slotId } }) })
+      .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('已刪除', '課程已移除', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
+    }
 
-function deleteSlot(slotId) {
-  showLoader();
-  fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteSlot', data: { SlotID: slotId } }) })
-  .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('已刪除', '課程已移除', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
-}
-
-function cancelClaim(slotId) {
-  showLoader();
-  fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'cancelClaim', data: { SlotID: slotId, CoachID: myLineId } }) })
-  .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('已取消', '此課程已退回開放狀態', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
-}
-function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
-function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
+    function cancelClaim(slotId) {
+      showLoader();
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'cancelClaim', data: { SlotID: slotId, CoachID: myLineId } }) })
+      .then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('已取消', '此課程已退回開放狀態', 'success'); calendar.refetchEvents(); } else { Swal.fire('失敗', res.message, 'error'); }});
+    }
     
-      </script>
-</body>
+    function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
+    function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
+  </script>
+  </body>
 </html>
