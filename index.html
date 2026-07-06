@@ -11,16 +11,8 @@
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
   <style>
-    /* 修正 FullCalendar 在手機版的高度與點擊體驗 */
-    #calendar {
-      max-width: 100%;
-      height: 80vh;
-      margin: 0 auto;
-      font-size: 0.9rem;
-    }
-    .fc-event {
-      cursor: pointer;
-    }
+    #calendar { max-width: 100%; height: 80vh; margin: 0 auto; font-size: 0.9rem; }
+    .fc-event { cursor: pointer; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -41,15 +33,14 @@
     <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
   </div>
 
-    <script>
-    <script>
-    // 🔴 請填入您的 GAS URL
-    const GAS_URL = 'YOUR_GAS_WEB_APP_URL'; 
+  <script>
+    // 🔴 您的 GAS 部署網址 (已經為您保留)
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec';
     const LIFF_ID = ''; 
-    
+
     // 開發用模擬資料
     let myLineId = 'U_TEST_COACH_001'; 
-    let myCoachName = '王大明教練'; // 新增：模擬教練暱稱
+    let myCoachName = '王大明教練';
     let currentRole = 'coach';
     let calendar;
 
@@ -83,10 +74,9 @@
               if (res.status === 'success') {
                 const events = res.data.map(slot => {
                   const isFull = slot.Status === 'Full';
-                  const dateStr = String(slot.Date).split('T')[0];
+                  const dateStr = String(slot.Date).split('T')[0] || '2026-01-01';
                   const timeParts = String(slot.TimeRange).split('-');
                   
-                  // 計算目前接課人數與顯示文字
                   const assignedNames = slot.AssignedCoachNames ? slot.AssignedCoachNames.split(',') : [];
                   const currentCount = assignedNames.length;
                   const reqCount = slot.RequiredCoaches;
@@ -98,7 +88,7 @@
                     title: `${slot.CourseName} (${slot.StudentName})\n教練: ${coachText} (${currentCount}/${reqCount})`,
                     start: `${dateStr}T${timeParts[0] || '08:00'}`,
                     end: `${dateStr}T${timeParts[1] || '09:00'}`,
-                    color: isFull ? '#9CA3AF' : '#10B981', // 灰: 滿編 / 綠: 缺人
+                    color: isFull ? '#9CA3AF' : '#10B981',
                     extendedProps: { 
                       courseName: slot.CourseName, studentName: slot.StudentName, location: slot.Location, 
                       reqCoaches: reqCount, currentCoaches: currentCount, coachNames: coachText,
@@ -111,18 +101,18 @@
                 Swal.fire('後端回報錯誤', res.message, 'error'); failureCallback();
               }
             } catch (e) {
-               console.error(text); Swal.fire('資料異常', '請檢查 Console', 'error'); failureCallback();
+               console.error(text); Swal.fire('資料異常', '請打開 Console 確認', 'error'); failureCallback();
             }
           }).catch(err => {
             hideLoader(); Swal.fire('連線失敗', err.toString(), 'error'); failureCallback();
           });
         },
 
-        // 點擊空白時段 (總教練派課)
         dateClick: function(info) {
           if (currentRole !== 'admin') return; 
           let dateStr = info.dateStr;
           let defaultStart = "14:00"; let defaultEnd = "16:00";
+          
           if (dateStr.includes('T')) {
             const d = new Date(dateStr);
             defaultStart = d.toTimeString().substring(0, 5);
@@ -165,7 +155,6 @@
           });
         },
 
-        // 點擊現有課程
         eventClick: function(info) {
           const ev = info.event;
           const p = ev.extendedProps;
@@ -213,7 +202,6 @@
       calendar.render();
     }
 
-    // --- API 呼叫函式 ---
     function createSlot(v) {
       showLoader();
       const payload = { 
@@ -245,5 +233,5 @@
     function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
     function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
   </script>
-  </body>
+</body>
 </html>
