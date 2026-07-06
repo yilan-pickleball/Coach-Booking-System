@@ -33,11 +33,12 @@
     <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
   </div>
 
-<script>
-    // 🔴 您的 GAS 部署網址 (務必確認是剛建立的新版本網址)
+  <script>
+    // 🔴 您的專屬 GAS 部署網址已幫您填妥
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec';
     const LIFF_ID = ''; 
 
+    // 開發用模擬資料
     let myLineId = 'U_TEST_COACH_001'; 
     let myCoachName = '王大明教練';
     let currentRole = 'coach';
@@ -70,7 +71,7 @@
               const res = JSON.parse(text);
               if (res.status === 'success') {
                 const events = res.data.map(slot => {
-                  const isAvailable = slot.Status === 'Available'; // ✅ 新增空檔狀態
+                  const isAvailable = slot.Status === 'Available'; 
                   const isFull = slot.Status === 'Full';
                   const dateStr = String(slot.Date).split('T')[0] || '2026-01-01';
                   const timeParts = String(slot.TimeRange).split('-');
@@ -83,11 +84,9 @@
 
                   return {
                     id: slot.SlotID, 
-                    // ✅ 如果是純空檔，顯示專屬標題；否則顯示正常課程標題
                     title: isAvailable ? `[可派課] ${coachText}\n地點: ${slot.Location || '未定'}` : `${slot.CourseName} (${slot.StudentName})\n教練: ${coachText} (${currentCount}/${reqCount})`,
                     start: `${dateStr}T${timeParts[0] || '08:00'}`,
                     end: `${dateStr}T${timeParts[1] || '09:00'}`,
-                    // ✅ 顏色區分：空檔(橘黃)、滿編(灰)、缺人(綠)
                     color: isAvailable ? '#F59E0B' : (isFull ? '#9CA3AF' : '#10B981'),
                     extendedProps: { 
                       courseName: slot.CourseName, studentName: slot.StudentName, location: slot.Location, 
@@ -98,11 +97,10 @@
                 });
                 successCallback(events);
               } else { Swal.fire('錯誤', res.message, 'error'); failureCallback(); }
-            } catch (e) { Swal.fire('資料異常', '請檢查 Console', 'error'); failureCallback(); }
+            } catch (e) { console.error(text); Swal.fire('資料異常', '請檢查 Console', 'error'); failureCallback(); }
           }).catch(err => { hideLoader(); Swal.fire('連線失敗', err.toString(), 'error'); failureCallback(); });
         },
 
-        // ✅ 點擊空白時段 (雙視角邏輯)
         dateClick: function(info) {
           let dateStr = info.dateStr;
           let defaultStart = "14:00"; let defaultEnd = "16:00";
@@ -114,7 +112,6 @@
           }
 
           if (currentRole === 'coach') {
-            // 教練提報空檔
             Swal.fire({
               title: '提報可接課空檔',
               html: `
@@ -138,7 +135,6 @@
               if (result.isConfirmed) submitAvailability(result.value);
             });
           } else {
-            // 總教練派課 (原邏輯)
             Swal.fire({
               title: '新增排課',
               html: `
@@ -166,13 +162,11 @@
           }
         },
 
-        // ✅ 點擊現有事件 (雙視角邏輯)
         eventClick: function(info) {
           const ev = info.event; const p = ev.extendedProps;
           
           if (currentRole === 'coach') {
             if (p.status === 'Available' && p.assignedToMe) {
-               // 允許教練刪除自己提報的空檔
                Swal.fire({ title: '您提報的空檔', text: '目前等待總教練派課中...', icon: 'info', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 取消提報', cancelButtonText: '關閉'
                }).then(res => { if(res.isDenied) deleteSlot(ev.id); });
             } else if (p.assignedToMe) {
@@ -182,9 +176,8 @@
                Swal.fire({ title: '確認接課？', text: `課程: ${p.courseName}\n地點: ${p.location}`, icon: 'question', showCancelButton: true, confirmButtonText: '我要接！', cancelButtonText: '關閉'
                }).then(res => { if (res.isConfirmed) claimSlot(ev.id); });
             } else { Swal.fire({ title: '課程已滿編', icon: 'warning' }); }
-          } else { // admin
+          } else { 
             if (p.status === 'Available') {
-               // 總教練將空檔轉為正式課程
                Swal.fire({
                  title: '指派課程給此教練',
                  html: `<p class="text-sm mb-2 text-left text-gray-600">教練：${p.coachNames}<br>地點：${p.location || '未定'}</p>
@@ -203,7 +196,6 @@
       calendar.render();
     }
 
-    // --- API 呼叫函式 ---
     function createSlot(v) {
       showLoader(); fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'createSlot', data: { CourseName: v.course, StudentName: v.student, RequiredCoaches: v.req, Date: v.date, TimeRange: `${v.start}-${v.end}`, Location: v.loc, CreatedBy: myLineId } }) }).then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('成功', '課程已發布', 'success'); calendar.refetchEvents(); } else Swal.fire('失敗', res.message, 'error');});
     }
@@ -216,11 +208,9 @@
     function cancelClaim(slotId) {
       showLoader(); fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'cancelClaim', data: { SlotID: slotId, CoachID: myLineId } }) }).then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('已取消', '退回開放狀態', 'success'); calendar.refetchEvents(); } else Swal.fire('失敗', res.message, 'error');});
     }
-    // ✅ 呼叫教練提報空檔 API
     function submitAvailability(v) {
       showLoader(); fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'submitAvailability', data: { Date: v.date, TimeRange: `${v.start}-${v.end}`, Location: v.loc, CoachID: myLineId, CoachName: myCoachName } }) }).then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('成功', '已送出空檔給總教練', 'success'); calendar.refetchEvents(); } else Swal.fire('失敗', res.message, 'error');});
     }
-    // ✅ 呼叫總教練派課 API
     function assignCourseToAvailability(payload) {
       showLoader(); fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'assignCourseToAvailability', data: payload }) }).then(r => r.json()).then(res => { hideLoader(); if(res.status === 'success') { Swal.fire('成功', '已指派為正式課程', 'success'); calendar.refetchEvents(); } else Swal.fire('失敗', res.message, 'error');});
     }
@@ -228,8 +218,5 @@
     function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
     function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
   </script>
-
 </body>
-
 </html>
-
