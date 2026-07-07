@@ -18,7 +18,7 @@
 <body class="bg-gray-50 text-gray-800">
 
   <nav class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
-    <h1 class="text-lg font-bold">🎾 匹克球排課系統</h1>
+    <h1 class="text-lg font-bold" id="nav-title">🎾 匹克球排課系統</h1>
     <select id="roleSelector" class="bg-blue-700 text-white text-sm rounded p-1 border border-blue-500" onchange="changeRole()">
       <option value="coach">教練視角 (接課)</option>
       <option value="admin">總教練視角 (派課)</option>
@@ -34,25 +34,76 @@
   </div>
 
   <script>
-    // 🔴 您的專屬 GAS 部署網址已幫您填妥
+    // 🔴 後端 API 網址 (已保留)
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec';
-    const LIFF_ID = ''; 
+    
+    // 🔴🔴🔴 請在這裡填入您剛剛申請到的 LIFF ID 🔴🔴🔴
+    const LIFF_ID = '2010629884-Dil0QZ8F'; 
 
-    // 開發用模擬資料
-    let myLineId = 'U_TEST_COACH_001'; 
-    let myCoachName = '王大明教練';
     let currentRole = 'coach';
     let calendar;
+    
+    // 儲存真實 LINE 身份與當前操作身份
+    let realLineId = '';
+    let realCoachName = '';
+    let myLineId = '';
+    let myCoachName = '';
 
-    document.addEventListener('DOMContentLoaded', function() { initCalendar(); });
+    document.addEventListener('DOMContentLoaded', function() { initializeLiff(); });
 
+    // ✅ 新增：初始化 LIFF 與登入邏輯
+    function initializeLiff() {
+      showLoader();
+      
+      // 防呆：如果沒填 LIFF ID，就用假資料降級執行
+      if (!LIFF_ID || LIFF_ID === '在此填入您的LIFF_ID') {
+         console.warn("尚未設定 LIFF ID，進入本地測試模式");
+         realLineId = 'U_TEST_COACH_001'; realCoachName = '測試教練';
+         myLineId = realLineId; myCoachName = realCoachName;
+         document.getElementById('nav-title').innerText = `🎾 測試模式`;
+         hideLoader(); initCalendar(); return;
+      }
+
+      liff.init({ liffId: LIFF_ID }).then(() => {
+        if (!liff.isLoggedIn()) {
+          // 如果沒登入，強制跳轉 LINE 登入畫面
+          liff.login();
+        } else {
+          // 已登入，抓取 LINE 個資
+          liff.getProfile().then(profile => {
+            realLineId = profile.userId;
+            realCoachName = profile.displayName;
+            myLineId = realLineId;
+            myCoachName = realCoachName;
+            
+            // 替換左上角標題，顯示教練名稱
+            document.getElementById('nav-title').innerText = `🎾 ${realCoachName} 教練`;
+            
+            hideLoader();
+            initCalendar();
+          }).catch(err => { hideLoader(); Swal.fire('獲取個資失敗', err.toString(), 'error'); });
+        }
+      }).catch(err => { hideLoader(); Swal.fire('LIFF 錯誤', err.toString(), 'error'); });
+    }
+
+    // ✅ 修改：切換視角時，保留教練的真實身份
     function changeRole() {
       currentRole = document.getElementById('roleSelector').value;
-      myLineId = currentRole === 'admin' ? 'U_TEST_ADMIN_001' : 'U_TEST_COACH_001';
-      myCoachName = currentRole === 'admin' ? '總教練' : '王大明教練';
+      if (currentRole === 'admin') {
+        myLineId = 'U_TEST_ADMIN_001'; // 總教練暫時用管理員 ID
+        myCoachName = '總教練';
+        document.getElementById('nav-title').innerText = `🎾 總教練模式`;
+      } else {
+        myLineId = realLineId; // 切回教練就還原真實 LINE 身份
+        myCoachName = realCoachName;
+        document.getElementById('nav-title').innerText = `🎾 ${realCoachName} 教練`;
+      }
       calendar.refetchEvents();
     }
 
+    // ==========================================
+    // 以下為行事曆與 API 邏輯 (完全保持您上一版最新狀態)
+    // ==========================================
     function initCalendar() {
       var calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
