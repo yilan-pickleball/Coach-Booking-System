@@ -19,7 +19,6 @@
 
   <nav class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
     <h1 class="text-lg font-bold" id="nav-title">🎾 匹克球排課系統</h1>
-    <!-- ✅ 預設隱藏，驗證身分後再決定是否顯示 -->
     <select id="roleSelector" class="bg-blue-700 text-white text-sm rounded p-1 border border-blue-500 hidden" onchange="changeRole()">
       <option value="coach">教練視角 (接課)</option>
       <option value="admin">總教練視角 (派課)</option>
@@ -158,7 +157,7 @@
         },
 
         dateClick: function(info) {
-          if (isProcessing()) return; // 阻擋連點
+          if (window.isProcessingFlag) return; // 阻擋連點
           
           let dateStr = info.dateStr;
           let defaultStart = "14:00"; let defaultEnd = "16:00";
@@ -232,7 +231,7 @@
         },
 
         eventClick: function(info) {
-          if (isProcessing) return; // 阻擋連點
+          if (window.isProcessingFlag) return; // 阻擋連點
           const ev = info.event; const p = ev.extendedProps;
           
           if (currentRole === 'coach') {
@@ -272,22 +271,22 @@
     }
 
     // ✅ 新增防連點狀態判定與共用 API 呼叫模組
-    function isProcessing() {
-       if(isProcessing) { Swal.fire('處理中', '請稍候，不要連續點擊', 'warning'); return true; }
+    function checkProcessing() {
+       if(window.isProcessingFlag) { Swal.fire('處理中', '請稍候，不要連續點擊', 'warning'); return true; }
        return false;
     }
 
     function callApi(actionName, payload, successMsg) {
-      if (isProcessing) return;
-      isProcessing = true;
+      if (checkProcessing()) return;
+      window.isProcessingFlag = true;
       showLoader(); 
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: actionName, data: payload }) })
       .then(r => r.json()).then(res => { 
-        isProcessing = false; hideLoader(); 
+        window.isProcessingFlag = false; hideLoader(); 
         if(res.status === 'success') { Swal.fire('成功', successMsg, 'success'); calendar.refetchEvents(); } 
         else Swal.fire('失敗', res.message, 'error');
       }).catch(err => { 
-        isProcessing = false; hideLoader(); Swal.fire('連線失敗', err.toString(), 'error'); 
+        window.isProcessingFlag = false; hideLoader(); Swal.fire('連線失敗', err.toString(), 'error'); 
       });
     }
 
@@ -298,8 +297,10 @@
     function claimSlot(slotId) {
       callApi('claimSlot', { SlotID: slotId, CoachID: myLineId, CoachName: myCoachName }, '您已成功認領！');
     }
+    
+    // 🔴 修正：加上 OperatedBy 以供後端安全驗證
     function deleteSlot(slotId) {
-      callApi('deleteSlot', { SlotID: slotId }, '已成功移除');
+      callApi('deleteSlot', { SlotID: slotId, OperatedBy: myLineId }, '已成功移除');
     }
     function cancelClaim(slotId) {
       callApi('cancelClaim', { SlotID: slotId, CoachID: myLineId }, '已退回開放狀態');
@@ -307,12 +308,18 @@
     function submitAvailability(v) {
       callApi('submitAvailability', { Date: v.date, TimeRange: `${v.start}-${v.end}`, Location: v.loc, CoachID: myLineId, CoachName: myCoachName }, '已送出空檔給總教練');
     }
+    
+    // 🔴 修正：加上 OperatedBy 以供後端安全驗證
     function assignCourseToAvailability(payload) {
+      payload.OperatedBy = myLineId;
       callApi('assignCourseToAvailability', payload, '已指派為正式課程');
     }
     
     function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
     function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
+    
+    // 初始化防呆變數
+    window.isProcessingFlag = false;
   </script>
 </body>
 </html>
