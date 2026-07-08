@@ -35,7 +35,7 @@
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec';
-    const LIFF_ID = '在此填入您的LIFF_ID'; 
+    const LIFF_ID = '2010629884-Dil0QZ8F'; // ✅ 已為您更新 LIFF ID
 
     // ✅ 前端管理員白名單 (為了UI顯示用，真正的安全卡控在GAS做)
     const ADMIN_LIST = ['U_TEST_ADMIN_001', '您的真實LINE_ID可以加在這裡測試'];
@@ -117,7 +117,6 @@
               if (res.status === 'success') {
                 const events = [];
                 res.data.forEach(slot => {
-                  // ✅ 防呆機制：若時間日期有缺漏，跳過不渲染，並在 Console 記錄異常資料
                   if (!slot.Date || !slot.TimeRange) {
                     console.warn('資料異常被跳過：', slot); return; 
                   }
@@ -133,7 +132,6 @@
                   const reqCount = slot.RequiredCoaches;
                   const coachText = currentCount > 0 ? assignedNames.join(', ') : '無人接課';
                   
-                  // ✅ 修正 Bug：使用陣列 includes 精確比對，而非字串 includes
                   const assignedIdsArray = slot.AssignedCoachIDs ? slot.AssignedCoachIDs.split(',') : [];
                   const assignedToMe = assignedIdsArray.includes(myLineId);
 
@@ -157,7 +155,7 @@
         },
 
         dateClick: function(info) {
-          if (window.isProcessingFlag) return; // 阻擋連點
+          if (window.isProcessingFlag) return; 
           
           let dateStr = info.dateStr;
           let defaultStart = "14:00"; let defaultEnd = "16:00";
@@ -189,7 +187,6 @@
                   date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value,
                   end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value
                 };
-                // ✅ 新增前端表單驗證
                 if(!v.date || !v.start || !v.end) { Swal.showValidationMessage('日期與時間欄位不得為空！'); return false; }
                 if(v.start >= v.end) { Swal.fire('時間錯誤', '結束時間必須晚於起始時間', 'error'); return false; }
                 return v;
@@ -220,7 +217,6 @@
                   req: document.getElementById('swal-req').value, date: document.getElementById('swal-date').value,
                   start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value
                 };
-                // ✅ 新增前端表單驗證
                 if(!v.course || !v.student || !v.date || !v.start || !v.end) { Swal.showValidationMessage('請確實填寫帶有 (必填) 或時間的欄位！'); return false; }
                 if(parseInt(v.req) <= 0) { Swal.showValidationMessage('需求人數必須大於 0'); return false; }
                 if(v.start >= v.end) { Swal.fire('時間錯誤', '結束時間必須晚於起始時間', 'error'); return false; }
@@ -231,7 +227,7 @@
         },
 
         eventClick: function(info) {
-          if (window.isProcessingFlag) return; // 阻擋連點
+          if (window.isProcessingFlag) return; 
           const ev = info.event; const p = ev.extendedProps;
           
           if (currentRole === 'coach') {
@@ -270,7 +266,6 @@
       calendar.render();
     }
 
-    // ✅ 新增防連點狀態判定與共用 API 呼叫模組
     function checkProcessing() {
        if(window.isProcessingFlag) { Swal.fire('處理中', '請稍候，不要連續點擊', 'warning'); return true; }
        return false;
@@ -290,15 +285,12 @@
       });
     }
 
-    // 簡化後的 API 呼叫 (套用防呆與共用模組)
     function createSlot(v) {
       callApi('createSlot', { CourseName: v.course, StudentName: v.student, RequiredCoaches: v.req, Date: v.date, TimeRange: `${v.start}-${v.end}`, Location: v.loc, CreatedBy: myLineId }, '課程已發布');
     }
     function claimSlot(slotId) {
       callApi('claimSlot', { SlotID: slotId, CoachID: myLineId, CoachName: myCoachName }, '您已成功認領！');
     }
-    
-    // 🔴 修正：加上 OperatedBy 以供後端安全驗證
     function deleteSlot(slotId) {
       callApi('deleteSlot', { SlotID: slotId, OperatedBy: myLineId }, '已成功移除');
     }
@@ -308,8 +300,6 @@
     function submitAvailability(v) {
       callApi('submitAvailability', { Date: v.date, TimeRange: `${v.start}-${v.end}`, Location: v.loc, CoachID: myLineId, CoachName: myCoachName }, '已送出空檔給總教練');
     }
-    
-    // 🔴 修正：加上 OperatedBy 以供後端安全驗證
     function assignCourseToAvailability(payload) {
       payload.OperatedBy = myLineId;
       callApi('assignCourseToAvailability', payload, '已指派為正式課程');
@@ -318,7 +308,6 @@
     function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
     function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
     
-    // 初始化防呆變數
     window.isProcessingFlag = false;
   </script>
 </body>
