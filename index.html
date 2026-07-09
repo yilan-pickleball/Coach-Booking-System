@@ -35,10 +35,12 @@
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec';
-    const LIFF_ID = '2010629884-Dil0QZ8F'; // ✅ 已為您更新 LIFF ID
+    
+    // ✅ 已為您填入專屬 LIFF ID
+    const LIFF_ID = '2010629884-Dil0QZ8F'; 
 
-    // ✅ 前端管理員白名單 (為了UI顯示用，真正的安全卡控在GAS做)
-    const ADMIN_LIST = ['U_TEST_ADMIN_001', '您的真實LINE_ID可以加在這裡測試'];
+    // ✅ 前端管理員白名單 (暫時放上您的搜尋用 ID)
+    const ADMIN_LIST = ['U_TEST_ADMIN_001', 'choutai6115'];
 
     let currentRole = 'coach';
     let calendar;
@@ -46,8 +48,6 @@
     let realCoachName = '';
     let myLineId = '';
     let myCoachName = '';
-    
-    // ✅ 防連點機制鎖定變數
     let isProcessing = false;
 
     document.addEventListener('DOMContentLoaded', function() { initializeLiff(); });
@@ -78,8 +78,15 @@
       
       document.getElementById('nav-title').innerText = `🎾 ${realCoachName} 教練`;
       
-      // ✅ 只有在白名單內的人，才顯示視角切換下拉選單
-      if (ADMIN_LIST.includes(realLineId)) {
+      // 🚨 臨時偵測小工具：如果系統發現您的真實 UID 不在白名單內，就彈窗告訴您！
+      if (!ADMIN_LIST.includes(realLineId) && realLineId.startsWith('U')) {
+        Swal.fire({
+          title: '取得真實 Developer ID',
+          html: `您平常用的 LINE ID 無法作為權限驗證。<br>您的系統專屬 UID 是：<br><br><b style="color:red; word-break: break-all;">${realLineId}</b><br><br>請複製這串代碼，將它替換到前端與 GAS 後端的 ADMIN_LIST 中！`,
+          icon: 'info'
+        });
+      } else if (ADMIN_LIST.includes(realLineId)) {
+        // 如果身分吻合，才顯示下拉選單
         document.getElementById('roleSelector').classList.remove('hidden');
       }
       
@@ -89,7 +96,7 @@
 
     function changeRole() {
       currentRole = document.getElementById('roleSelector').value;
-      myLineId = realLineId; // 統一使用真實身分操作
+      myLineId = realLineId; 
       if (currentRole === 'admin') {
         myCoachName = `總教練 (${realCoachName})`;
         document.getElementById('nav-title').innerText = `🎾 總教練模式`;
@@ -117,9 +124,7 @@
               if (res.status === 'success') {
                 const events = [];
                 res.data.forEach(slot => {
-                  if (!slot.Date || !slot.TimeRange) {
-                    console.warn('資料異常被跳過：', slot); return; 
-                  }
+                  if (!slot.Date || !slot.TimeRange) return; 
                   
                   const isAvailable = slot.Status === 'Available'; 
                   const isFull = slot.Status === 'Full';
