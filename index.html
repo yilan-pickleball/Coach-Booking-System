@@ -16,16 +16,15 @@
     <h1 class="text-3xl font-bold mb-8">🎾 歡迎來到排課系統</h1>
     <p class="mb-6 text-lg">請選擇您的身分進入系統：</p>
     <div class="space-y-4 w-64">
-      <button onclick="register('student')" class="w-full bg-white text-blue-600 py-3 rounded-lg font-bold shadow-lg hover:bg-gray-100">👨‍🎓 我是學員 (直接進入)</button>
+      <button onclick="register('student')" class="w-full bg-white text-blue-600 py-3 rounded-lg font-bold shadow-lg hover:bg-gray-100">👨‍🎓 我是學員 (預約課程)</button>
       <button onclick="register('coach')" class="w-full bg-blue-800 text-white py-3 rounded-lg font-bold shadow-lg border border-white hover:bg-blue-900">🏸 我是教練 (需審核)</button>
-      <button onclick="register('admin')" class="w-full bg-gray-800 text-white py-3 rounded-lg font-bold shadow-lg border border-gray-600 hover:bg-black">👑 我是總教練 (需審核)</button>
     </div>
   </div>
 
   <div id="pending-screen" class="fixed inset-0 bg-gray-700 z-50 flex flex-col items-center justify-center text-white hidden">
     <div class="text-5xl mb-4">⏳</div>
     <h2 class="text-2xl font-bold mb-2">您的帳號正在審核中</h2>
-    <p class="text-gray-300">請通知系統管理員開通您的權限後，重新整理網頁。</p>
+    <p class="text-gray-300">請通知系統管理員開通權限後，重新整理網頁。</p>
   </div>
 
   <nav class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
@@ -44,11 +43,7 @@
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec';
     const LIFF_ID = '2010629884-Dil0QZ8F'; 
 
-    let currentRole = '';
-    let realDBRole = ''; // 資料庫真實身分
-    let calendar;
-    let myLineId = '';
-    let myCoachName = '';
+    let currentRole = ''; let realDBRole = ''; let calendar; let myLineId = ''; let myCoachName = '';
     window.isProcessingFlag = false;
 
     document.addEventListener('DOMContentLoaded', function() { initializeLiff(); });
@@ -66,39 +61,26 @@
       }).catch(err => { hideLoader(); Swal.fire('LIFF 錯誤', err.toString(), 'error'); });
     }
 
-    // 🟢 登入驗證
     function loginToSystem() {
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'login', data: { LineID: myLineId } }) })
       .then(r => r.json()).then(res => {
         hideLoader();
         if (res.status === 'success') {
           const user = res.data;
-          if (!user.registered) {
-            document.getElementById('portal-screen').classList.remove('hidden'); // 顯示註冊選擇畫面
-          } else if (user.status === 'Pending') {
-            document.getElementById('pending-screen').classList.remove('hidden'); // 顯示審核中畫面
-          } else {
-            // 核准進入
-            realDBRole = user.role;
-            currentRole = realDBRole;
-            setupUI();
-          }
+          if (!user.registered) document.getElementById('portal-screen').classList.remove('hidden'); 
+          else if (user.status === 'Pending') document.getElementById('pending-screen').classList.remove('hidden'); 
+          else { realDBRole = user.role; currentRole = realDBRole; setupUI(); }
         }
       });
     }
 
-    // 🟢 註冊功能
     function register(selectedRole) {
-      document.getElementById('portal-screen').classList.add('hidden');
-      showLoader();
+      document.getElementById('portal-screen').classList.add('hidden'); showLoader();
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'register', data: { LineID: myLineId, Name: myCoachName, Role: selectedRole } }) })
       .then(r => r.json()).then(res => {
         hideLoader();
-        if (res.data.status === 'Pending') {
-          document.getElementById('pending-screen').classList.remove('hidden');
-        } else {
-          realDBRole = res.data.role; currentRole = realDBRole; setupUI();
-        }
+        if (res.data.status === 'Pending') document.getElementById('pending-screen').classList.remove('hidden');
+        else { realDBRole = res.data.role; currentRole = realDBRole; setupUI(); }
       });
     }
 
@@ -106,12 +88,7 @@
       document.getElementById('calendar').classList.remove('hidden');
       const roleName = { 'admin': '總教練', 'coach': '教練', 'student': '學員' }[currentRole];
       document.getElementById('nav-title').innerText = `🎾 ${myCoachName} (${roleName})`;
-      
-      // 只有真・總教練可以看到切換選單 (方便測試不同視角)
-      if (realDBRole === 'admin') {
-        document.getElementById('roleSelector').classList.remove('hidden');
-        document.getElementById('roleSelector').value = currentRole;
-      }
+      if (realDBRole === 'admin') { document.getElementById('roleSelector').classList.remove('hidden'); document.getElementById('roleSelector').value = currentRole; }
       initCalendar();
     }
 
@@ -123,7 +100,7 @@
     }
 
     function initCalendar() {
-      if (calendar) calendar.destroy(); // 避免重複渲染
+      if (calendar) calendar.destroy(); 
       var calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'timeGridWeek', headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,timeGridWeek' }, locale: 'zh-tw', allDaySlot: false, slotMinTime: "08:00:00", slotMaxTime: "22:00:00",
@@ -131,23 +108,24 @@
           showLoader();
           fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getCalendarEvents', data: { LineID: myLineId, Role: currentRole } }) })
           .then(r => r.json()).then(res => {
-            hideLoader();
-            const events = [];
+            hideLoader(); const events = [];
             res.data.forEach(slot => {
               if (!slot.Date || !slot.TimeRange) return; 
-              const isAvailable = slot.Status === 'Available'; const isFull = slot.Status === 'Full';
+              const isAvailable = slot.Status === 'Available'; const isFull = slot.Status === 'Full'; const isReq = slot.Status === 'Requested';
               const dateStr = String(slot.Date).split('T')[0]; const timeParts = String(slot.TimeRange).split('-');
               const assignedNames = slot.AssignedCoachNames ? slot.AssignedCoachNames.split(',') : [];
               const assignedIds = slot.AssignedCoachIDs ? slot.AssignedCoachIDs.split(',') : [];
+              
               events.push({
                 id: slot.SlotID, 
-                title: isAvailable ? `[可派課] ${assignedNames.join(',')}` : `${slot.CourseName} (${slot.StudentName})\n教練: ${assignedNames.join(',')} (${assignedNames.length}/${slot.RequiredCoaches})`,
+                title: isReq ? `[審核中] ${slot.CourseName}\n學員: ${slot.StudentName.split(' ')[0]}` : (isAvailable ? `[可派課] ${assignedNames.join(',')}` : `${slot.CourseName}\n教練: ${assignedNames.join(',')} (${assignedNames.length}/${slot.RequiredCoaches})`),
                 start: `${dateStr}T${timeParts[0]}`, end: `${dateStr}T${timeParts[1]}`,
-                color: isAvailable ? '#F59E0B' : (isFull ? '#9CA3AF' : '#10B981'),
+                // ✅ 紫色代表學員預約審核中
+                color: isReq ? '#8B5CF6' : (isAvailable ? '#F59E0B' : (isFull ? '#9CA3AF' : '#10B981')),
                 extendedProps: { 
                   courseName: slot.CourseName, studentName: slot.StudentName, location: slot.Location, 
                   reqCoaches: slot.RequiredCoaches, currentCoaches: assignedNames.length, coachNames: assignedNames.join(','),
-                  status: slot.Status, assignedToMe: assignedIds.includes(myLineId) 
+                  status: slot.Status, assignedToMe: assignedIds.includes(myLineId), createdByMe: slot.CreatedBy === myLineId
                 }
               });
             });
@@ -156,18 +134,43 @@
         },
 
         dateClick: function(info) {
-          if (window.isProcessingFlag || currentRole === 'student') return; // 學員不能排課
+          if (window.isProcessingFlag) return; 
           let dateStr = info.dateStr; let defaultStart = "14:00"; let defaultEnd = "16:00";
           if (dateStr.includes('T')) { const d = new Date(dateStr); defaultStart = d.toTimeString().substring(0,5); defaultEnd = new Date(d.getTime()+7200000).toTimeString().substring(0,5); dateStr = dateStr.split('T')[0]; }
 
-          if (currentRole === 'coach') {
+          if (currentRole === 'student') {
+             // ✅ 學員申請課程表單
              Swal.fire({
-              title: '提報空檔', html: `<input type="date" id="swal-date" class="swal2-input !mt-0" value="${dateStr}"><input type="time" id="swal-start" class="swal2-input !mt-2 !w-1/2" value="${defaultStart}"><input type="time" id="swal-end" class="swal2-input !mt-2 !w-1/2" value="${defaultEnd}"><input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="偏好地點 (選填)">`, showCancelButton: true,
+              title: '預約上課申請', 
+              html: `
+                <select id="swal-type" class="swal2-input !mt-2">
+                  <option value="一對一">一對一</option><option value="一對二">一對二</option>
+                  <option value="一對三">一對三</option><option value="一對四">一對四</option>
+                  <option value="特殊團課">特殊團課</option>
+                </select>
+                <input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員代表姓名 (必填)">
+                <input type="tel" id="swal-phone" class="swal2-input !mt-2" placeholder="連絡電話 (必填)">
+                <input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}">
+                <div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div>
+                <input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="上課地點 (選填)">
+              `, showCancelButton: true, confirmButtonText: '送出申請',
+              preConfirm: () => {
+                const v = { type: document.getElementById('swal-type').value, student: document.getElementById('swal-student').value.trim(), phone: document.getElementById('swal-phone').value.trim(), date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value };
+                if(!v.student || !v.phone || !v.date || !v.start || !v.end) { Swal.showValidationMessage('請確實填寫必填欄位！'); return false; }
+                if(v.start >= v.end) { Swal.fire('時間錯誤', '結束時間必須晚於起始時間', 'error'); return false; }
+                return v;
+              }
+            }).then((res) => { if (res.isConfirmed) callApi('requestCourse', { CourseType: res.value.type, StudentName: res.value.student, Phone: res.value.phone, Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: res.value.loc, CreatedBy: myLineId }, '申請已送出，請等候核准'); });
+          }
+          else if (currentRole === 'coach') {
+             // 教練提報空檔
+             Swal.fire({
+              title: '提報空檔', html: `<input type="date" id="swal-date" class="swal2-input !mt-0" value="${dateStr}"><input type="time" id="swal-start" class="swal2-input !mt-2 !w-1/2" value="${defaultStart}"><input type="time" id="swal-end" class="swal2-input !mt-2 !w-1/2" value="${defaultEnd}"><input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="偏好地點 (選填)">`, showCancelButton: true, confirmButtonText: '送出空檔',
               preConfirm: () => ({ date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value })
-            }).then((res) => { if (res.isConfirmed) callApi('submitAvailability', { Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: res.value.loc, CoachID: myLineId, CoachName: myCoachName }, '已送出'); });
+            }).then((res) => { if (res.isConfirmed) callApi('submitAvailability', { Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: res.value.loc, CoachID: myLineId, CoachName: myCoachName }, '空檔已送出'); });
           } else if (currentRole === 'admin') {
              Swal.fire({
-              title: '發布課程', html: `<input type="text" id="swal-course" class="swal2-input !mt-2" placeholder="課程名稱"><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員姓名"><input type="number" id="swal-req" class="swal2-input !mt-2" placeholder="需求人數" value="1"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><input type="time" id="swal-start" class="swal2-input !mt-2 !w-1/2" value="${defaultStart}"><input type="time" id="swal-end" class="swal2-input !mt-2 !w-1/2" value="${defaultEnd}">`, showCancelButton: true,
+              title: '發布課程', html: `<input type="text" id="swal-course" class="swal2-input !mt-2" placeholder="課程名稱"><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員姓名"><input type="number" id="swal-req" class="swal2-input !mt-2" placeholder="需求人數" value="1"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div>`, showCancelButton: true,
               preConfirm: () => ({ course: document.getElementById('swal-course').value, student: document.getElementById('swal-student').value, req: document.getElementById('swal-req').value, date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value })
             }).then((res) => { if (res.isConfirmed) callApi('createSlot', { CourseName: res.value.course, StudentName: res.value.student, RequiredCoaches: res.value.req, Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: '', CreatedBy: myLineId }, '已發布'); });
           }
@@ -178,9 +181,13 @@
           const ev = info.event; const p = ev.extendedProps;
           
           if (currentRole === 'student') {
-             Swal.fire({ title: '課程資訊', html: `課程: ${p.courseName}<br>教練: ${p.coachNames || '等待中'}`, icon: 'info' });
+             if (p.status === 'Requested') {
+                Swal.fire({ title: '申請審核中', text: '請等候總教練核准與安排教練', icon: 'info', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 撤回申請', cancelButtonText: '關閉' }).then(res => { if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已撤回申請'); });
+             } else {
+                Swal.fire({ title: '課程資訊', html: `課程: ${p.courseName}<br>教練: ${p.coachNames || '等待中'}`, icon: 'info' });
+             }
           } else if (currentRole === 'coach') {
-            if (p.status === 'Available' && p.assignedToMe) {
+            if (p.status === 'Available' && p.createdByMe) {
                Swal.fire({ title: '取消提報', icon: 'info', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 取消', cancelButtonText: '關閉' }).then(res => { if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已移除'); });
             } else if (p.assignedToMe) {
                Swal.fire({ title: '您的課程', icon: 'info', showDenyButton: true, showCancelButton: true, confirmButtonText: '✅ 簽到', denyButtonText: '❌ 取消接課', cancelButtonText: '關閉' }).then(res => { if (res.isDenied) callApi('cancelClaim', { SlotID: ev.id, CoachID: myLineId }, '已退課'); });
@@ -188,7 +195,11 @@
                Swal.fire({ title: '確認接課？', icon: 'question', showCancelButton: true, confirmButtonText: '我要接！' }).then(res => { if (res.isConfirmed) callApi('claimSlot', { SlotID: ev.id, CoachID: myLineId, CoachName: myCoachName }, '成功認領'); });
             }
           } else if (currentRole === 'admin') { 
-            if (p.status === 'Available') {
+            if (p.status === 'Requested') {
+               // ✅ 總教練審核學員申請
+               Swal.fire({ title: '學員預約審核', html: `<b>${p.courseName}</b><br>學員: ${p.studentName}<br>地點: ${p.location || '未定'}`, icon: 'question', showDenyButton: true, showCancelButton: true, confirmButtonText: '✅ 核准 (開放教練接課)', denyButtonText: '🗑️ 拒絕並刪除', cancelButtonText: '關閉' })
+               .then(res => { if(res.isConfirmed) callApi('approveRequest', { SlotID: ev.id, OperatedBy: myLineId }, '已核准並開放接課'); else if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已刪除申請'); });
+            } else if (p.status === 'Available') {
                Swal.fire({ title: '指派課程', html: `<input type="text" id="assign-course" class="swal2-input !mt-0" placeholder="課程名稱"><input type="text" id="assign-student" class="swal2-input" placeholder="學員姓名">`, showCancelButton: true, preConfirm: () => ({ course: document.getElementById('assign-course').value, student: document.getElementById('assign-student').value }) })
                .then(res => { if(res.isConfirmed) callApi('assignCourseToAvailability', { SlotID: ev.id, CourseName: res.value.course, StudentName: res.value.student, OperatedBy: myLineId }, '指派成功'); });
             } else {
