@@ -18,6 +18,11 @@
 </head>
 <body class="bg-gray-50 text-gray-800">
 
+  <datalist id="loc-options">
+    <option value="宜蘭國民運動中心"></option>
+    <option value="宜蘭運動公園光電風雨球場"></option>
+  </datalist>
+
   <nav class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
     <h1 class="text-lg font-bold" id="nav-title">🎾 系統載入中...</h1>
     <div class="flex gap-2 items-center">
@@ -40,7 +45,7 @@
     let currentRole = 'student'; let realDBRole = ''; let dbStatus = ''; 
     let calendar; let myLineId = ''; let myCoachName = '';
     window.isProcessingFlag = false;
-    window.initialEventsCache = null; // 暫存第一次抓回來的課表
+    window.initialEventsCache = null; 
 
     document.addEventListener('DOMContentLoaded', function() { initializeLiff(); });
 
@@ -51,13 +56,12 @@
         else {
           liff.getProfile().then(profile => {
             myLineId = profile.userId; myCoachName = profile.displayName;
-            initSystemFast(); // 🚀 呼叫極速合併 API
+            initSystemFast(); 
           }).catch(err => { hideLoader(); Swal.fire('錯誤', err.toString(), 'error'); });
         }
       }).catch(err => { hideLoader(); Swal.fire('LIFF 錯誤', err.toString(), 'error'); });
     }
 
-    // 🚀 將登入驗證與讀取課表合併為「單次請求」
     function initSystemFast() {
       updateLoaderText("正在同步資料庫與最新課表...");
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'initSystem', data: { LineID: myLineId } }) })
@@ -66,7 +70,7 @@
         if (res.status === 'success') {
           const user = res.data.user;
           realDBRole = user.role; dbStatus = user.status;
-          window.initialEventsCache = parseGasEvents(res.data.events); // 儲存預載課表
+          window.initialEventsCache = parseGasEvents(res.data.events); 
           buildRoleSelector();
           setupUI();
         }
@@ -117,7 +121,6 @@
       updateNavTitle(); calendar.refetchEvents(); 
     }
 
-    // 將後端原始資料轉成 FullCalendar 格式的模組
     function parseGasEvents(dataList) {
       const events = [];
       dataList.forEach(slot => {
@@ -149,13 +152,11 @@
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'timeGridWeek', headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,timeGridWeek' }, locale: 'zh-tw', allDaySlot: false, slotMinTime: "08:00:00", slotMaxTime: "22:00:00",
         events: function(info, successCallback, failureCallback) {
-          // 🚀 第一次載入：直接吃合併 API 送回來的快取資料，省下 2 秒鐘！
           if (window.initialEventsCache) {
             successCallback(window.initialEventsCache);
-            window.initialEventsCache = null; // 清空快取，下次切換視角時才重新 Fetch
+            window.initialEventsCache = null; 
             return;
           }
-
           showLoader("正在更新課表...");
           fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getCalendarEvents', data: { LineID: myLineId, Role: currentRole } }) })
           .then(r => r.json()).then(res => {
@@ -171,9 +172,9 @@
           if (currentRole === 'student') {
              Swal.fire({
               title: '預約上課申請', 
-              html: `<select id="swal-type" class="swal2-input !mt-2"><option value="一對一">一對一</option><option value="一對二">一對二</option><option value="一對三">一對三</option><option value="一對四">一對四</option><option value="特殊團課">特殊團課</option></select><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員代表姓名 (必填)"><input type="tel" id="swal-phone" class="swal2-input !mt-2" placeholder="連絡電話 (必填)"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div><input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="上課地點 (選填)">`, showCancelButton: true, confirmButtonText: '送出申請',
+              html: `<select id="swal-type" class="swal2-input !mt-2"><option value="一對一">一對一</option><option value="一對二">一對二</option><option value="一對三">一對三</option><option value="一對四">一對四</option><option value="特殊團課">特殊團課</option></select><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員代表姓名 (必填)"><input type="tel" id="swal-phone" class="swal2-input !mt-2" placeholder="連絡電話 (必填)"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div><input list="loc-options" id="swal-loc" class="swal2-input !mt-2" placeholder="上課地點 (選填)">`, showCancelButton: true, confirmButtonText: '送出申請',
               preConfirm: () => {
-                const v = { type: document.getElementById('swal-type').value, student: document.getElementById('swal-student').value.trim(), phone: document.getElementById('swal-phone').value.trim(), date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value };
+                const v = { type: document.getElementById('swal-type').value, student: document.getElementById('swal-student').value.trim(), phone: document.getElementById('swal-phone').value.trim(), date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value.trim() };
                 if(!v.student || !v.phone || !v.date || !v.start || !v.end) { Swal.showValidationMessage('請確實填寫必填欄位！'); return false; }
                 if(v.start >= v.end) { Swal.fire('時間錯誤', '結束時間必須晚於起始時間', 'error'); return false; }
                 return v;
@@ -182,14 +183,21 @@
           }
           else if (currentRole === 'coach') {
              Swal.fire({
-              title: '提報空檔', html: `<input type="date" id="swal-date" class="swal2-input !mt-0" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div><input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="偏好地點 (選填)">`, showCancelButton: true, confirmButtonText: '送出空檔',
-              preConfirm: () => ({ date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value })
+              title: '提報空檔', html: `<input type="date" id="swal-date" class="swal2-input !mt-0" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div><input list="loc-options" id="swal-loc" class="swal2-input !mt-2" placeholder="偏好地點 (選填)">`, showCancelButton: true, confirmButtonText: '送出空檔',
+              preConfirm: () => ({ date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value.trim() })
             }).then((res) => { if (res.isConfirmed) callApi('submitAvailability', { Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: res.value.loc, CoachID: myLineId, CoachName: myCoachName }, '空檔已送出'); });
           } else if (currentRole === 'admin') {
              Swal.fire({
-              title: '發布課程', html: `<input type="text" id="swal-course" class="swal2-input !mt-2" placeholder="課程名稱"><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員姓名"><input type="number" id="swal-req" class="swal2-input !mt-2" placeholder="需求人數" value="1"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div>`, showCancelButton: true,
-              preConfirm: () => ({ course: document.getElementById('swal-course').value, student: document.getElementById('swal-student').value, req: document.getElementById('swal-req').value, date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value })
-            }).then((res) => { if (res.isConfirmed) callApi('createSlot', { CourseName: res.value.course, StudentName: res.value.student, RequiredCoaches: res.value.req, Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: '', CreatedBy: myLineId }, '已發布'); });
+              title: '發布課程', html: `<input type="text" id="swal-course" class="swal2-input !mt-2" placeholder="課程名稱 (必填)"><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員姓名 (必填)"><input type="number" id="swal-req" class="swal2-input !mt-2" placeholder="需求人數" value="1"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div><input list="loc-options" id="swal-loc" class="swal2-input !mt-2" placeholder="上課地點 (必填)">`, showCancelButton: true,
+              preConfirm: () => {
+                const v = { course: document.getElementById('swal-course').value.trim(), student: document.getElementById('swal-student').value.trim(), req: document.getElementById('swal-req').value, date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value.trim() };
+                // 🔴 強制防呆：總教練排課若沒填地點，會被擋下來
+                if(!v.course || !v.student || !v.date || !v.start || !v.end || !v.loc) { Swal.showValidationMessage('請確實填寫帶有 (必填) 的欄位！'); return false; }
+                if(parseInt(v.req) <= 0) { Swal.showValidationMessage('需求人數必須大於 0'); return false; }
+                if(v.start >= v.end) { Swal.fire('時間錯誤', '結束時間必須晚於起始時間', 'error'); return false; }
+                return v;
+              }
+            }).then((res) => { if (res.isConfirmed) callApi('createSlot', { CourseName: res.value.course, StudentName: res.value.student, RequiredCoaches: res.value.req, Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: res.value.loc, CreatedBy: myLineId }, '已發布'); });
           }
         },
 
@@ -201,23 +209,44 @@
              if (p.status === 'Requested') {
                 Swal.fire({ title: '申請審核中', text: '請等候總教練核准與安排教練', icon: 'info', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 撤回申請', cancelButtonText: '關閉' }).then(res => { if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已撤回申請'); });
              } else {
-                Swal.fire({ title: '課程資訊', html: `課程: ${p.courseName}<br>教練: ${p.coachNames || '等待中'}`, icon: 'info' });
+                Swal.fire({ title: '課程資訊', html: `課程: ${p.courseName}<br>地點: ${p.location || '安排中'}<br>教練: ${p.coachNames || '等待中'}`, icon: 'info' });
              }
           } else if (currentRole === 'coach') {
             if (p.status === 'Available' && p.createdByMe) {
                Swal.fire({ title: '取消提報', icon: 'info', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 取消', cancelButtonText: '關閉' }).then(res => { if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已移除'); });
             } else if (p.assignedToMe) {
-               Swal.fire({ title: '您的課程', icon: 'info', showDenyButton: true, showCancelButton: true, confirmButtonText: '✅ 簽到', denyButtonText: '❌ 取消接課', cancelButtonText: '關閉' }).then(res => { if (res.isDenied) callApi('cancelClaim', { SlotID: ev.id, CoachID: myLineId }, '已退課'); });
+               Swal.fire({ title: '您的課程', text: `地點: ${p.location}`, icon: 'info', showDenyButton: true, showCancelButton: true, confirmButtonText: '✅ 簽到', denyButtonText: '❌ 取消接課', cancelButtonText: '關閉' }).then(res => { if (res.isConfirmed) Swal.fire('提示', `準備帶入簽到系統\nBookingID: ${ev.id}`, 'success'); else if (res.isDenied) callApi('cancelClaim', { SlotID: ev.id, CoachID: myLineId }, '已退課'); });
             } else if (p.status === 'Open') {
-               Swal.fire({ title: '確認接課？', icon: 'question', showCancelButton: true, confirmButtonText: '我要接！' }).then(res => { if (res.isConfirmed) callApi('claimSlot', { SlotID: ev.id, CoachID: myLineId, CoachName: myCoachName }, '成功認領'); });
-            }
+               Swal.fire({ 
+                 title: '確認接課？', 
+                 html: `
+                   <div class="text-left text-sm mb-2 text-gray-700 border-b pb-2">課程：${p.courseName}<br>學員：${p.studentName.split(' ')[0]}<br>目前設定地點：${p.location || '尚未決定'}</div>
+                   <div class="text-left text-sm font-bold text-red-600 mb-1 mt-3">請設定最終上課地點 (教練必填)：</div>
+                   <input list="loc-options" id="swal-claim-loc" class="swal2-input !mt-0" placeholder="請點擊選擇或自行輸入" value="${p.location || ''}">
+                 `,
+                 icon: 'question', showCancelButton: true, confirmButtonText: '確定接課',
+                 preConfirm: () => {
+                   const loc = document.getElementById('swal-claim-loc').value.trim();
+                   if (!loc) { Swal.showValidationMessage('請務必輸入或選擇上課地點！'); return false; }
+                   return loc;
+                 }
+               }).then(res => { if (res.isConfirmed) claimSlot(ev.id, res.value); });
+            } else { Swal.fire({ title: '課程已滿編', icon: 'warning' }); }
           } else if (currentRole === 'admin') { 
             if (p.status === 'Requested') {
                Swal.fire({ title: '學員預約審核', html: `<b>${p.courseName}</b><br>學員: ${p.studentName}<br>地點: ${p.location || '未定'}`, icon: 'question', showDenyButton: true, showCancelButton: true, confirmButtonText: '✅ 核准 (開放教練接課)', denyButtonText: '🗑️ 拒絕並刪除', cancelButtonText: '關閉' })
                .then(res => { if(res.isConfirmed) callApi('approveRequest', { SlotID: ev.id, OperatedBy: myLineId }, '已核准並開放接課'); else if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已刪除申請'); });
             } else if (p.status === 'Available') {
-               Swal.fire({ title: '指派課程', html: `<input type="text" id="assign-course" class="swal2-input !mt-0" placeholder="課程名稱"><input type="text" id="assign-student" class="swal2-input" placeholder="學員姓名">`, showCancelButton: true, preConfirm: () => ({ course: document.getElementById('assign-course').value, student: document.getElementById('assign-student').value }) })
-               .then(res => { if(res.isConfirmed) callApi('assignCourseToAvailability', { SlotID: ev.id, CourseName: res.value.course, StudentName: res.value.student, OperatedBy: myLineId }, '指派成功'); });
+               Swal.fire({ title: '指派課程', html: `<input type="text" id="assign-course" class="swal2-input !mt-0" placeholder="課程名稱 (必填)"><input type="text" id="assign-student" class="swal2-input" placeholder="學員姓名 (必填)"><input list="loc-options" id="assign-loc" class="swal2-input !mt-2" placeholder="上課地點 (必填)" value="${p.location || ''}">`, showCancelButton: true, preConfirm: () => {
+                    const course = document.getElementById('assign-course').value.trim();
+                    const student = document.getElementById('assign-student').value.trim();
+                    const loc = document.getElementById('assign-loc').value.trim();
+                    // 🔴 強制防呆：總教練派課給空檔時，如果沒填地點也會被擋下來
+                    if(!course || !student || !loc) { Swal.showValidationMessage('請確實填寫所有必填欄位！'); return false; }
+                    return { course, student, loc };
+                 }
+               })
+               .then(res => { if(res.isConfirmed) callApi('assignCourseToAvailability', { SlotID: ev.id, CourseName: res.value.course, StudentName: res.value.student, Location: res.value.loc, OperatedBy: myLineId }, '指派成功'); });
             } else {
                Swal.fire({ title: '刪除排課', icon: 'warning', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 刪除' }).then(res => { if (res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已刪除'); });
             }
@@ -233,6 +262,10 @@
         window.isProcessingFlag = false; hideLoader(); 
         if(res.status === 'success') { Swal.fire('成功', successMsg, 'success'); calendar.refetchEvents(); } else Swal.fire('失敗', res.message, 'error');
       });
+    }
+
+    function claimSlot(slotId, locationStr) {
+      callApi('claimSlot', { SlotID: slotId, CoachID: myLineId, CoachName: myCoachName, Location: locationStr }, '成功認領！');
     }
 
     function showLoader(text) { 
