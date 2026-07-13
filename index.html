@@ -4,10 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>匹克球排課系統</title>
+  
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://static.line-scdn.net">
+  <link rel="preconnect" href="https://cdn.tailwindcss.com">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  
   <style> #calendar { max-width: 100%; height: 80vh; margin: 0 auto; font-size: 0.9rem; } .fc-event { cursor: pointer; } </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -21,7 +27,11 @@
   </nav>
 
   <div class="p-4"><div id="calendar" class="bg-white rounded-lg shadow-sm p-2 border border-gray-200 hidden"></div></div>
-  <div id="loader" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50"><div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div></div>
+  
+  <div id="loader" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex flex-col justify-center items-center hidden z-50">
+    <div class="animate-spin rounded-full h-14 w-14 border-t-4 border-b-4 border-blue-400 mb-4"></div>
+    <p id="loader-text" class="text-white font-bold tracking-widest text-lg">處理中...</p>
+  </div>
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec';
@@ -30,68 +40,62 @@
     let currentRole = 'student'; let realDBRole = ''; let dbStatus = ''; 
     let calendar; let myLineId = ''; let myCoachName = '';
     window.isProcessingFlag = false;
+    window.initialEventsCache = null; // 暫存第一次抓回來的課表
 
     document.addEventListener('DOMContentLoaded', function() { initializeLiff(); });
 
     function initializeLiff() {
-      showLoader();
+      showLoader("正在連線至 LINE 伺服器...");
       liff.init({ liffId: LIFF_ID }).then(() => {
         if (!liff.isLoggedIn()) liff.login();
         else {
           liff.getProfile().then(profile => {
             myLineId = profile.userId; myCoachName = profile.displayName;
-            loginToSystem();
+            initSystemFast(); // 🚀 呼叫極速合併 API
           }).catch(err => { hideLoader(); Swal.fire('錯誤', err.toString(), 'error'); });
         }
       }).catch(err => { hideLoader(); Swal.fire('LIFF 錯誤', err.toString(), 'error'); });
     }
 
-    function loginToSystem() {
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'login', data: { LineID: myLineId } }) })
+    // 🚀 將登入驗證與讀取課表合併為「單次請求」
+    function initSystemFast() {
+      updateLoaderText("正在同步資料庫與最新課表...");
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'initSystem', data: { LineID: myLineId } }) })
       .then(r => r.json()).then(res => {
         hideLoader();
         if (res.status === 'success') {
-          realDBRole = res.data.role;
-          dbStatus = res.data.status;
+          const user = res.data.user;
+          realDBRole = user.role; dbStatus = user.status;
+          window.initialEventsCache = parseGasEvents(res.data.events); // 儲存預載課表
           buildRoleSelector();
           setupUI();
         }
-      });
+      }).catch(err => { hideLoader(); Swal.fire('連線失敗', err.toString(), 'error'); });
     }
 
-    // 🟢 核心功能：依據資料庫權限，動態產生下拉選單
     function buildRoleSelector() {
       const sel = document.getElementById('roleSelector');
       sel.innerHTML = ''; 
 
       if (realDBRole === 'admin' && dbStatus === 'Approved') {
-        sel.add(new Option('👑 總教練視角', 'admin'));
-        sel.add(new Option('🏸 教練視角', 'coach'));
-        sel.add(new Option('👨‍🎓 學員視角', 'student'));
-        currentRole = 'admin'; 
-        sel.classList.remove('hidden');
+        sel.add(new Option('👑 總教練視角', 'admin')); sel.add(new Option('🏸 教練視角', 'coach')); sel.add(new Option('👨‍🎓 學員視角', 'student'));
+        currentRole = 'admin'; sel.classList.remove('hidden');
       } else if (realDBRole === 'coach' && dbStatus === 'Approved') {
-        sel.add(new Option('🏸 教練視角', 'coach'));
-        sel.add(new Option('👨‍🎓 學員視角', 'student'));
-        currentRole = 'coach';
-        sel.classList.remove('hidden');
+        sel.add(new Option('🏸 教練視角', 'coach')); sel.add(new Option('👨‍🎓 學員視角', 'student'));
+        currentRole = 'coach'; sel.classList.remove('hidden');
       } else {
-        // 學員或審核中的教練
         currentRole = 'student';
-        if (dbStatus === 'Pending') {
-          Swal.fire('審核中', '您的教練資格正在審核中，目前以學員身分瀏覽。', 'info');
-        } else {
-          document.getElementById('applyCoachBtn').classList.remove('hidden');
-        }
+        if (dbStatus === 'Pending') Swal.fire('審核中', '您的教練資格正在審核中，目前以學員身分瀏覽。', 'info');
+        else document.getElementById('applyCoachBtn').classList.remove('hidden');
       }
       sel.value = currentRole;
     }
 
     function applyForCoach() {
-      Swal.fire({ title: '申請成為教練', text: '送出後請通知總教練為您開通權限。', icon: 'info', showCancelButton: true, confirmButtonText: '確認送出' })
+      Swal.fire({ title: '申請成為教練', text: '送出後請通知總教練開通權限。', icon: 'info', showCancelButton: true, confirmButtonText: '確認送出' })
       .then((res) => {
         if (res.isConfirmed) {
-          showLoader();
+          showLoader("正在送出申請...");
           fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'register', data: { LineID: myLineId, Name: myCoachName, Role: 'coach' } }) })
           .then(r => r.json()).then(res => { hideLoader(); Swal.fire('已送出', '請等待審核', 'success').then(()=>location.reload()); });
         }
@@ -100,8 +104,7 @@
 
     function setupUI() {
       document.getElementById('calendar').classList.remove('hidden');
-      updateNavTitle();
-      initCalendar();
+      updateNavTitle(); initCalendar();
     }
 
     function updateNavTitle() {
@@ -111,8 +114,33 @@
 
     function changeRole() {
       currentRole = document.getElementById('roleSelector').value;
-      updateNavTitle();
-      calendar.refetchEvents(); // 切換視角後重新讀取對應的課表
+      updateNavTitle(); calendar.refetchEvents(); 
+    }
+
+    // 將後端原始資料轉成 FullCalendar 格式的模組
+    function parseGasEvents(dataList) {
+      const events = [];
+      dataList.forEach(slot => {
+        if (!slot.Date || !slot.TimeRange) return; 
+        const isAvailable = slot.Status === 'Available'; const isFull = slot.Status === 'Full'; const isReq = slot.Status === 'Requested';
+        const dateStr = String(slot.Date).split('T')[0]; const timeParts = String(slot.TimeRange).split('-');
+        if (!timeParts[0] || !timeParts[1]) return;
+        const assignedNames = slot.AssignedCoachNames ? slot.AssignedCoachNames.split(',') : [];
+        const assignedIds = slot.AssignedCoachIDs ? slot.AssignedCoachIDs.split(',') : [];
+        
+        events.push({
+          id: slot.SlotID, 
+          title: isReq ? `[審核中] ${slot.CourseName}\n學員: ${slot.StudentName.split(' ')[0]}` : (isAvailable ? `[可派課] ${assignedNames.join(',')}` : `${slot.CourseName}\n教練: ${assignedNames.join(',')} (${assignedNames.length}/${slot.RequiredCoaches})`),
+          start: `${dateStr}T${timeParts[0]}`, end: `${dateStr}T${timeParts[1]}`,
+          color: isReq ? '#8B5CF6' : (isAvailable ? '#F59E0B' : (isFull ? '#9CA3AF' : '#10B981')),
+          extendedProps: { 
+            courseName: slot.CourseName, studentName: slot.StudentName, location: slot.Location, 
+            reqCoaches: slot.RequiredCoaches, currentCoaches: assignedNames.length, coachNames: assignedNames.join(','),
+            status: slot.Status, assignedToMe: assignedIds.includes(myLineId), createdByMe: slot.CreatedBy === myLineId
+          }
+        });
+      });
+      return events;
     }
 
     function initCalendar() {
@@ -121,30 +149,17 @@
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'timeGridWeek', headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,timeGridWeek' }, locale: 'zh-tw', allDaySlot: false, slotMinTime: "08:00:00", slotMaxTime: "22:00:00",
         events: function(info, successCallback, failureCallback) {
-          showLoader();
+          // 🚀 第一次載入：直接吃合併 API 送回來的快取資料，省下 2 秒鐘！
+          if (window.initialEventsCache) {
+            successCallback(window.initialEventsCache);
+            window.initialEventsCache = null; // 清空快取，下次切換視角時才重新 Fetch
+            return;
+          }
+
+          showLoader("正在更新課表...");
           fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getCalendarEvents', data: { LineID: myLineId, Role: currentRole } }) })
           .then(r => r.json()).then(res => {
-            hideLoader(); const events = [];
-            res.data.forEach(slot => {
-              if (!slot.Date || !slot.TimeRange) return; 
-              const isAvailable = slot.Status === 'Available'; const isFull = slot.Status === 'Full'; const isReq = slot.Status === 'Requested';
-              const dateStr = String(slot.Date).split('T')[0]; const timeParts = String(slot.TimeRange).split('-');
-              const assignedNames = slot.AssignedCoachNames ? slot.AssignedCoachNames.split(',') : [];
-              const assignedIds = slot.AssignedCoachIDs ? slot.AssignedCoachIDs.split(',') : [];
-              
-              events.push({
-                id: slot.SlotID, 
-                title: isReq ? `[審核中] ${slot.CourseName}\n學員: ${slot.StudentName.split(' ')[0]}` : (isAvailable ? `[可派課] ${assignedNames.join(',')}` : `${slot.CourseName}\n教練: ${assignedNames.join(',')} (${assignedNames.length}/${slot.RequiredCoaches})`),
-                start: `${dateStr}T${timeParts[0]}`, end: `${dateStr}T${timeParts[1]}`,
-                color: isReq ? '#8B5CF6' : (isAvailable ? '#F59E0B' : (isFull ? '#9CA3AF' : '#10B981')),
-                extendedProps: { 
-                  courseName: slot.CourseName, studentName: slot.StudentName, location: slot.Location, 
-                  reqCoaches: slot.RequiredCoaches, currentCoaches: assignedNames.length, coachNames: assignedNames.join(','),
-                  status: slot.Status, assignedToMe: assignedIds.includes(myLineId), createdByMe: slot.CreatedBy === myLineId
-                }
-              });
-            });
-            successCallback(events);
+            hideLoader(); successCallback(parseGasEvents(res.data));
           }).catch(err => { hideLoader(); failureCallback(); });
         },
 
@@ -156,18 +171,7 @@
           if (currentRole === 'student') {
              Swal.fire({
               title: '預約上課申請', 
-              html: `
-                <select id="swal-type" class="swal2-input !mt-2">
-                  <option value="一對一">一對一</option><option value="一對二">一對二</option>
-                  <option value="一對三">一對三</option><option value="一對四">一對四</option>
-                  <option value="特殊團課">特殊團課</option>
-                </select>
-                <input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員代表姓名 (必填)">
-                <input type="tel" id="swal-phone" class="swal2-input !mt-2" placeholder="連絡電話 (必填)">
-                <input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}">
-                <div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div>
-                <input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="上課地點 (選填)">
-              `, showCancelButton: true, confirmButtonText: '送出申請',
+              html: `<select id="swal-type" class="swal2-input !mt-2"><option value="一對一">一對一</option><option value="一對二">一對二</option><option value="一對三">一對三</option><option value="一對四">一對四</option><option value="特殊團課">特殊團課</option></select><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員代表姓名 (必填)"><input type="tel" id="swal-phone" class="swal2-input !mt-2" placeholder="連絡電話 (必填)"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div><input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="上課地點 (選填)">`, showCancelButton: true, confirmButtonText: '送出申請',
               preConfirm: () => {
                 const v = { type: document.getElementById('swal-type').value, student: document.getElementById('swal-student').value.trim(), phone: document.getElementById('swal-phone').value.trim(), date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value };
                 if(!v.student || !v.phone || !v.date || !v.start || !v.end) { Swal.showValidationMessage('請確實填寫必填欄位！'); return false; }
@@ -224,13 +228,18 @@
     }
 
     function callApi(actionName, payload, successMsg) {
-      window.isProcessingFlag = true; showLoader(); 
+      window.isProcessingFlag = true; showLoader("正在儲存資料..."); 
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: actionName, data: payload }) }).then(r => r.json()).then(res => { 
         window.isProcessingFlag = false; hideLoader(); 
         if(res.status === 'success') { Swal.fire('成功', successMsg, 'success'); calendar.refetchEvents(); } else Swal.fire('失敗', res.message, 'error');
       });
     }
-    function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
+
+    function showLoader(text) { 
+      if(text) document.getElementById('loader-text').innerText = text;
+      document.getElementById('loader').classList.remove('hidden'); 
+    }
+    function updateLoaderText(text) { document.getElementById('loader-text').innerText = text; }
     function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
   </script>
 </body>
