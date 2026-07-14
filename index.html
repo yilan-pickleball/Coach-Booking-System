@@ -267,6 +267,11 @@
                     <label class=" font-semibold text-slate-500 mb-1">教練編制</label>
                     <input type="number" id="admRequiredCoaches" value="1" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">指派教練 (選填)</label>
+                    <select id="admAssignedCoach" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                        </select>
+                </div>
                 <div class="flex space-x-2 pt-2">
                     <button type="button" onclick="closeModal('adminCreateModal')" class="w-1/2 border py-2 rounded-lg text-sm text-slate-500">取消</button>
                     <button type="submit" class="w-1/2 bg-purple-600 text-white py-2 rounded-lg text-sm font-semibold">建立</button>
@@ -941,30 +946,37 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
         });
 
        // 3. 管理員建立時段
-        document.getElementById('adminCreateForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const startTime = document.getElementById('admStartTime').value;
-            const endTime = document.getElementById('admEndTime').value;
-            if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
+            document.getElementById('adminCreateForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const startTime = document.getElementById('admStartTime').value;
+    const endTime = document.getElementById('admEndTime').value;
+    if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
 
-            // 組合學員姓名與電話，符合後端原本接收的格式
-            const combinedStudentInfo = document.getElementById('admStudentName').value.trim() + ' (' + document.getElementById('admPhone').value.trim() + ')';
+    const combinedStudentInfo = document.getElementById('admStudentName').value.trim() + ' (' + document.getElementById('admPhone').value.trim() + ')';
+    
+    // 【關鍵新增】抓取選擇的教練 ID 與姓名
+    const coachSelect = document.getElementById('admAssignedCoach');
+    const assignedCoachId = coachSelect.value;
+    const assignedCoachName = assignedCoachId ? coachSelect.options[coachSelect.selectedIndex].text : '';
 
-            try {
-                Swal.showLoading();
-                const res = await callGAS('createSlot', { 
-                    CreatedBy: currentUser.LineID, 
-                    CourseName: document.getElementById('admCourseName').value.trim(), 
-                    StudentName: combinedStudentInfo, 
-                    Date: document.getElementById('admDate').value, 
-                    TimeRange: `${startTime} - ${endTime}`, 
-                    Location: document.getElementById('admLocation').value.trim(), 
-                    RequiredCoaches: document.getElementById('admRequiredCoaches').value 
-                });
-                if (res.status === "success") { closeModal('adminCreateModal'); Swal.fire('建立成功', '', 'success').then(() => { loadSystemData(); }); }
-                else { throw new Error(res.message); }
-            } catch (err) { Swal.fire('建立失敗', err.message, 'error'); }
+    try {
+        Swal.showLoading();
+        const res = await callGAS('createSlot', { 
+            CreatedBy: currentUser.LineID, 
+            CourseName: document.getElementById('admCourseName').value.trim(), 
+            StudentName: combinedStudentInfo, 
+            Date: document.getElementById('admDate').value, 
+            TimeRange: `${startTime} - ${endTime}`, 
+            Location: document.getElementById('admLocation').value.trim(), 
+            RequiredCoaches: document.getElementById('admRequiredCoaches').value,
+            AssignedCoachID: assignedCoachId,      // 新增傳輸欄位
+            AssignedCoachName: assignedCoachName   // 新增傳輸欄位
         });
+        if (res.status === "success") { closeModal('adminCreateModal'); Swal.fire('建立成功', '', 'success').then(() => { loadSystemData(); }); }
+        else { throw new Error(res.message); }
+    } catch (err) { Swal.fire('建立失敗', err.message, 'error'); }
+});
+
         
         // ==========================================
         // 開啟視窗與輔助函式 (統一清除舊版殘留)
