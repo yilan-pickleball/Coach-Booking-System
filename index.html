@@ -716,12 +716,12 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
         });
 
         async function handleClaimSlot(slotId, currentLocation) {
-            const { value: selectedLocation } = await Swal.fire({ title: '確認接單？', input: 'text', inputValue: currentLocation || '', inputPlaceholder: '請輸入確定上課球場', showCancelButton: true, confirmButtonText: '確定', cancelButtonText: '取消', inputValidator: (v) => { if(!v) return '地點必填'; } });
+            const { value: selectedLocation } = await Swal.fire({ title: '確認接課？', input: 'text', inputValue: currentLocation || '', inputPlaceholder: '請輸入確定上課球場', showCancelButton: true, confirmButtonText: '確定', cancelButtonText: '取消', inputValidator: (v) => { if(!v) return '地點必填'; } });
             if (selectedLocation) {
                 try {
                     closeDateModal(); Swal.showLoading();
                     const res = await callGAS('claimSlot', { SlotID: slotId, CoachID: currentUser.LineID, CoachName: currentUser.Name, Location: selectedLocation });
-                    if (res.status === 'success') { Swal.fire('接單成功', '', 'success').then(() => { loadSystemData(); }); }
+                    if (res.status === 'success') { Swal.fire('接課成功', '', 'success').then(() => { loadSystemData(); }); }
                     else { throw new Error(res.message); }
                 } catch (err) { Swal.fire('承接失敗', err.message, 'error'); }
             }
