@@ -718,24 +718,127 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
             });
         }
 
-        // 動態產生時段下拉選單 (整點與半點)
-function generateTimeOptions() {
-    let options = '<option value="" disabled selected>選擇</option>';
-    for (let h = 6; h <= 23; h++) {
-        const hour = String(h).padStart(2, '0');
-        options += `<option value="${hour}:00">${hour}:00</option>`;
-        options += `<option value="${hour}:30">${hour}:30</option>`;
-    }
-    document.getElementById('reqStartTime').innerHTML = options;
-    document.getElementById('reqEndTime').innerHTML = options;
-}
+        // ==========================================
+        // 統一動態產生時段下拉選單 (為三個身份的表單同時注入選項)
+        // ==========================================
+        function generateTimeOptions() {
+            let options = '<option value="" disabled selected>選擇</option>';
+            for (let h = 6; h <= 23; h++) {
+                const hour = String(h).padStart(2, '0');
+                options += `<option value="${hour}:00">${hour}:00</option>`;
+                options += `<option value="${hour}:30">${hour}:30</option>`;
+            }
+            
+            // 一次幫學員、教練、管理員的下拉選單填入選項
+            const selectIds = ['reqStartTime', 'reqEndTime', 'availStartTime', 'availEndTime', 'admStartTime', 'admEndTime'];
+            selectIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = options;
+            });
+        }
 
-// 開啟學員申請視窗並預載選項
-function showRequestCourseModal() { 
-    document.getElementById('studentRequestModal').classList.remove('hidden'); 
-    document.getElementById('reqDate').value = new Date(Date.now() + 86400000).toISOString().split('T')[0]; 
-    generateTimeOptions(); 
-}
+        // 開啟對應視窗並預載選單
+        function showRequestCourseModal() { 
+            document.getElementById('studentRequestModal').classList.remove('hidden'); 
+            document.getElementById('reqDate').value = new Date(Date.now() + 86400000).toISOString().split('T')[0]; 
+            generateTimeOptions(); 
+        }
+
+        function showSubmitAvailabilityModal() { 
+            document.getElementById('coachAvailabilityModal').classList.remove('hidden'); 
+            document.getElementById('availDate').value = new Date().toISOString().split('T')[0]; 
+            generateTimeOptions(); // 修復教練視窗不出的關鍵
+        }
+
+        function showCreateSlotModal() { 
+            document.getElementById('adminCreateModal').classList.remove('hidden'); 
+            document.getElementById('admDate').value = new Date().toISOString().split('T')[0]; 
+            generateTimeOptions();
+        }
+
+        function showAdminAssignModal(slotId, loc) { 
+            document.getElementById('assignSlotId').value = slotId; 
+            document.getElementById('assignLocation').value = loc || ''; 
+            document.getElementById('adminAssignModal').classList.remove('hidden'); 
+        }
+
+        function quickFillAvailability(dateStr) { 
+            closeDateModal(); 
+            showSubmitAvailabilityModal(); 
+            document.getElementById('availDate').value = dateStr; 
+        }
+
+        // ==========================================
+        // 更新表單送出邏輯 (包含結束時間防呆檢查)
+        // ==========================================
+        
+        // 1. 學員申請
+        document.getElementById('studentRequestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const startTime = document.getElementById('reqStartTime').value;
+            const endTime = document.getElementById('reqEndTime').value;
+            if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
+            
+            try {
+                Swal.showLoading();
+                const res = await callGAS('requestCourse', { 
+                    CreatedBy: currentUser.LineID, 
+                    CourseType: document.getElementById('reqCourseType').value, 
+                    StudentName: document.getElementById('reqStudentName').value.trim(), 
+                    Phone: document.getElementById('reqPhone').value.trim(), 
+                    Date: document.getElementById('reqDate').value, 
+                    TimeRange: `${startTime} - ${endTime}`, 
+                    Location: document.getElementById('reqLocation').value.trim() 
+                });
+                if (res.status === "success") { closeModal('studentRequestModal'); Swal.fire('申請成功', '', 'success').then(() => { loadSystemData(); }); }
+                else { throw new Error(res.message); }
+            } catch (err) { Swal.fire('申請失敗', err.message, 'error'); }
+        });
+
+        // 2. 教練送出空檔
+        document.getElementById('coachAvailabilityForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const startTime = document.getElementById('availStartTime').value;
+            const endTime = document.getElementById('availEndTime').value;
+            if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
+
+            try {
+                Swal.showLoading();
+                const res = await callGAS('submitAvailability', { 
+                    CoachID: currentUser.LineID, 
+                    CoachName: currentUser.Name, 
+                    Date: document.getElementById('availDate').value, 
+                    TimeRange: `${startTime} - ${endTime}`, 
+                    Location: document.getElementById('availLocation').value.trim() 
+                });
+                if (res.status === "success") { closeModal('coachAvailabilityModal'); Swal.fire('提交成功', '', 'success').then(() => { loadSystemData(); }); }
+                else { throw new Error(res.message); }
+            } catch (err) { Swal.fire('提交失敗', err.message, 'error'); }
+        });
+
+        // 3. 管理員建立時段
+        document.getElementById('adminCreateForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const startTime = document.getElementById('admStartTime').value;
+            const endTime = document.getElementById('admEndTime').value;
+            if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
+
+            try {
+                Swal.showLoading();
+                const res = await callGAS('createSlot', { 
+                    CreatedBy: currentUser.LineID, 
+                    CourseName: document.getElementById('admCourseName').value.trim(), 
+                    StudentName: document.getElementById('admStudentName').value.trim(), 
+                    Date: document.getElementById('admDate').value, 
+                    TimeRange: `${startTime} - ${endTime}`, 
+                    Location: document.getElementById('admLocation').value.trim(), 
+                    RequiredCoaches: document.getElementById('admRequiredCoaches').value 
+                });
+                if (res.status === "success") { closeModal('adminCreateModal'); Swal.fire('建立成功', '', 'success').then(() => { loadSystemData(); }); }
+                else { throw new Error(res.message); }
+            } catch (err) { Swal.fire('建立失敗', err.message, 'error'); }
+        });
+        
         function showSubmitAvailabilityModal() { document.getElementById('coachAvailabilityModal').classList.remove('hidden'); document.getElementById('availDate').value = new Date().toISOString().split('T')[0]; }
         function showCreateSlotModal() { document.getElementById('adminCreateModal').classList.remove('hidden'); document.getElementById('admDate').value = new Date().toISOString().split('T')[0]; }
         function showAdminAssignModal(slotId, loc) { document.getElementById('assignSlotId').value = slotId; document.getElementById('assignLocation').value = loc || ''; document.getElementById('adminAssignModal').classList.remove('hidden'); }
