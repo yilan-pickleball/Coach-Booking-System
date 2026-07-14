@@ -120,7 +120,7 @@
             <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2"><i class="fa-solid fa-user-pen text-emerald-600 mr-2"></i>預約申請</h3>
             <form id="studentRequestForm" class="space-y-3.5">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">課程類型</label>
+                    <label class=" font-semibold text-slate-500 mb-1">課程類型</label>
                     <select id="reqCourseType" class="w-full px-3 py-2 border rounded-lg text-sm">
                         <option value="一對一">一對一</option>
                         <option value="一對二">一對二</option>
@@ -131,20 +131,20 @@
                 </div>
                 <div class="flex space-x-2">
                     <div class="w-1/2">
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">代表學員</label>
+                        <label class=" font-semibold text-slate-500 mb-1">代表學員</label>
                         <input type="text" id="reqStudentName" required class="w-full px-3 py-2 border rounded-lg text-sm bg-slate-100 placeholder-slate-400" placeholder="填入全名">
                     </div>
                     <div class="w-1/2">
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">聯絡電話</label>
+                        <label class=" font-semibold text-slate-500 mb-1">聯絡電話</label>
                         <input type="tel" id="reqPhone" required class="w-full px-3 py-2 border rounded-lg text-sm bg-slate-100 placeholder-slate-400" placeholder="手機號碼">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">日期</label>
+                    <label class=" font-semibold text-slate-500 mb-1">日期</label>
                     <input type="date" id="reqDate" required class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">時段範圍</label>
+                    <label class=" font-semibold text-slate-500 mb-1">時段範圍</label>
                     <div class="flex items-center space-x-2">
                         <select id="reqStartTime" required class="w-full px-3 py-2 border rounded-lg text-sm bg-white"></select>
                         <span class="text-slate-400 font-bold">-</span>
@@ -152,7 +152,7 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">指定上課場地</label>
+                    <label class=" font-semibold text-slate-500 mb-1">指定上課場地</label>
                     <input type="text" id="reqLocation" list="locationList" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="選擇或自行填寫地點">
                 </div>
                 <div class="flex space-x-2 pt-2">
@@ -168,11 +168,11 @@
             <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2"><i class="fa-solid fa-clock text-emerald-600 mr-2"></i>填寫可授課空檔</h3>
             <form id="coachAvailabilityForm" class="space-y-3.5">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">日期</label>
+                    <label class=" font-semibold text-slate-500 mb-1">日期</label>
                     <input type="date" id="availDate" required class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">可授課時段</label>
+                    <label class=" font-semibold text-slate-500 mb-1">可授課時段</label>
                     <div class="flex items-center space-x-2">
                         <select id="availStartTime" required class="w-full px-3 py-2 border rounded-lg text-sm bg-white"></select>
                         <span class="text-slate-400 font-bold">-</span>
@@ -180,7 +180,7 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">希望教學球場</label>
+                    <label class=" font-semibold text-slate-500 mb-1">希望教學球場</label>
                     <input type="text" id="availLocation" list="locationList" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="選擇或自行填寫地點">
                 </div>
                 <div class="flex space-x-2 pt-2">
@@ -196,19 +196,27 @@
             <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2"><i class="fa-solid fa-shield-halved text-purple-600 mr-2"></i>管理員新增時段</h3>
             <form id="adminCreateForm" class="space-y-3.5">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">課程名稱</label>
+                    <label class=" font-semibold text-slate-500 mb-1">課程名稱</label>
                     <input type="text" id="admCourseName" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例：匹克球週末公開團課">
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">學員代表</label>
-                    <input type="text" id="admStudentName" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例：林小明 或 團體課學員">
+               
+                    <div class="flex space-x-2">
+                    <div class="w-1/2">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">學員代表</label>
+                        <input type="text" id="admStudentName" required class="w-full px-3 py-2 border rounded-lg text-sm bg-slate-100 placeholder-slate-400" placeholder="填入全名">
+                    </div>
+                    <div class="w-1/2">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">聯絡電話</label>
+                        <input type="tel" id="admPhone" required class="w-full px-3 py-2 border rounded-lg text-sm bg-slate-100 placeholder-slate-400" placeholder="手機號碼">
+                    </div>
+                                
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">日期</label>
+                    <label class=" font-semibold text-slate-500 mb-1">日期</label>
                     <input type="date" id="admDate" required class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">時段</label>
+                    <label class=" font-semibold text-slate-500 mb-1">時段</label>
                     <div class="flex items-center space-x-2">
                         <select id="admStartTime" required class="w-full px-3 py-2 border rounded-lg text-sm bg-white"></select>
                         <span class="text-slate-400 font-bold">-</span>
@@ -216,11 +224,11 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">地點</label>
+                    <label class=" font-semibold text-slate-500 mb-1">地點</label>
                     <input type="text" id="admLocation" list="locationList" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="選擇或自行填寫地點">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">教練編制</label>
+                    <label class=" font-semibold text-slate-500 mb-1">教練編制</label>
                     <input type="number" id="admRequiredCoaches" value="1" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
                 <div class="flex space-x-2 pt-2">
@@ -237,15 +245,15 @@
             <form id="adminAssignForm" class="space-y-3.5">
                 <input type="hidden" id="assignSlotId">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">課程名稱</label>
+                    <label class=" font-semibold text-slate-500 mb-1">課程名稱</label>
                     <input type="text" id="assignCourseName" required class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">預約學員</label>
+                    <label class=" font-semibold text-slate-500 mb-1">預約學員</label>
                     <input type="text" id="assignStudentName" required class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">地點</label>
+                    <label class=" font-semibold text-slate-500 mb-1">地點</label>
                     <input type="text" id="assignLocation" list="locationList" class="w-full px-3 py-2 border rounded-lg text-sm">
                 </div>
                 <div class="flex space-x-2 pt-2">
@@ -816,19 +824,22 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
             } catch (err) { Swal.fire('提交失敗', err.message, 'error'); }
         });
 
-        // 3. 管理員建立時段
+       // 3. 管理員建立時段
         document.getElementById('adminCreateForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const startTime = document.getElementById('admStartTime').value;
             const endTime = document.getElementById('admEndTime').value;
             if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
 
+            // 組合學員姓名與電話，符合後端原本接收的格式
+            const combinedStudentInfo = document.getElementById('admStudentName').value.trim() + ' (' + document.getElementById('admPhone').value.trim() + ')';
+
             try {
                 Swal.showLoading();
                 const res = await callGAS('createSlot', { 
                     CreatedBy: currentUser.LineID, 
                     CourseName: document.getElementById('admCourseName').value.trim(), 
-                    StudentName: document.getElementById('admStudentName').value.trim(), 
+                    StudentName: combinedStudentInfo, 
                     Date: document.getElementById('admDate').value, 
                     TimeRange: `${startTime} - ${endTime}`, 
                     Location: document.getElementById('admLocation').value.trim(), 
@@ -839,12 +850,46 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
             } catch (err) { Swal.fire('建立失敗', err.message, 'error'); }
         });
         
-        function showSubmitAvailabilityModal() { document.getElementById('coachAvailabilityModal').classList.remove('hidden'); document.getElementById('availDate').value = new Date().toISOString().split('T')[0]; }
-        function showCreateSlotModal() { document.getElementById('adminCreateModal').classList.remove('hidden'); document.getElementById('admDate').value = new Date().toISOString().split('T')[0]; }
-        function showAdminAssignModal(slotId, loc) { document.getElementById('assignSlotId').value = slotId; document.getElementById('assignLocation').value = loc || ''; document.getElementById('adminAssignModal').classList.remove('hidden'); }
-        function showCoachApplyModal() { document.getElementById('coachApplyModal').classList.remove('hidden'); }
-        function quickFillAvailability(dateStr) { closeDateModal(); showSubmitAvailabilityModal(); document.getElementById('availDate').value = dateStr; }
-        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        // ==========================================
+        // 開啟視窗與輔助函式 (統一清除舊版殘留)
+        // ==========================================
+        function showRequestCourseModal() { 
+            document.getElementById('studentRequestModal').classList.remove('hidden'); 
+            document.getElementById('reqDate').value = new Date(Date.now() + 86400000).toISOString().split('T')[0]; 
+            generateTimeOptions(); 
+        }
+
+        function showSubmitAvailabilityModal() { 
+            document.getElementById('coachAvailabilityModal').classList.remove('hidden'); 
+            document.getElementById('availDate').value = new Date().toISOString().split('T')[0]; 
+            generateTimeOptions(); // 確保呼叫生成時間選單
+        }
+
+        function showCreateSlotModal() { 
+            document.getElementById('adminCreateModal').classList.remove('hidden'); 
+            document.getElementById('admDate').value = new Date().toISOString().split('T')[0]; 
+            generateTimeOptions(); // 確保呼叫生成時間選單
+        }
+
+        function showAdminAssignModal(slotId, loc) { 
+            document.getElementById('assignSlotId').value = slotId; 
+            document.getElementById('assignLocation').value = loc || ''; 
+            document.getElementById('adminAssignModal').classList.remove('hidden'); 
+        }
+
+        function showCoachApplyModal() { 
+            document.getElementById('coachApplyModal').classList.remove('hidden'); 
+        }
+
+        function quickFillAvailability(dateStr) { 
+            closeDateModal(); 
+            showSubmitAvailabilityModal(); 
+            document.getElementById('availDate').value = dateStr; 
+        }
+
+        function closeModal(id) { 
+            document.getElementById(id).classList.add('hidden'); 
+        }
     </script>
 </body>
 </html>
