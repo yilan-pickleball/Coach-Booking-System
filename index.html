@@ -387,8 +387,10 @@
                     else if (event.Status === 'Available') { statusClass = "bg-green-50 text-green-600 border border-green-200"; statusText = "教練空檔 (Available)"; borderClass = "border-l-4 border-l-green-500"; }
                     else if (event.Status === 'Requested') { statusClass = "bg-amber-50 text-amber-600 border border-amber-200"; statusText = "申請預約中 (Requested)"; borderClass = "border-l-4 border-l-amber-500"; }
 
-                    const assignedNames = event.CoachNames ? String(event.CoachNames).split(',').filter(e=>e) : [];
-                    const assignedIds = event.CoachIDs ? String(event.CoachIDs).split(',').filter(e=>e) : [];
+
+                    const assignedNames = event.AssignedCoachNames ? String(event.AssignedCoachNames).split(',').filter(e=>e) : [];
+                    const assignedIds = event.AssignedCoachIDs ? String(event.AssignedCoachIDs).split(',').filter(e=>e) : [];
+                    
                     const card = document.createElement('div');
                     card.className = `p-4 bg-slate-50 rounded-2xl shadow-sm border ${borderClass} space-y-3 relative`;
                     card.innerHTML = `
@@ -433,31 +435,40 @@
             setTimeout(() => { modal.classList.add('hidden'); }, 200);
         }
 
-        function renderUpcomingEvents() {
-            const container = document.getElementById('upcomingEventsList');
-            container.innerHTML = '';
-            const filtered = allEvents.filter(e => {
-                const assignedIds = e.CoachIDs ? String(e.CoachIDs).split(',').filter(x=>x) : [];
-                return currentUser.Role === 'admin' || e.CreatedBy === currentUser.LineID || assignedIds.includes(currentUser.LineID);
-            }).sort((a,b) => String(a.Date).localeCompare(String(b.Date)) || String(a.TimeRange).localeCompare(String(b.TimeRange)));
 
-            if (filtered.length === 0) {
-                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">本月無您相關的排程安排</p>`;
-                return;
-            }
-            filtered.forEach(ev => {
-                const row = document.createElement('div');
-                row.className = "flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all cursor-pointer border border-slate-100";
-                row.setAttribute('onclick', `openDateModal('${formatGASDateString(ev.Date)}')`);
-                let color = "bg-slate-400";
-                if (ev.Status === 'Full') color = "bg-red-500";
-                if (ev.Status === 'Available') color = "bg-green-500";
-                if (ev.Status === 'Requested') color = "bg-amber-500";
-                if (ev.Status === 'Open') color = "bg-blue-500";
-                row.innerHTML = `<div class="flex items-center min-w-0"><span class="w-2.5 h-2.5 rounded-full ${color} inline-block mr-2"></span><div class="min-w-0"><p class="text-xs font-bold text-slate-800 truncate">${ev.CourseName || '教練空檔'}</p><p class="text-[10px] text-slate-500 mt-0.5">${formatGASDateString(ev.Date)} | ${ev.TimeRange}</p></div></div><i class="fa-solid fa-chevron-right text-slate-300 text-xs pl-2"></i>`;
-                container.appendChild(row);
-            });
-        }
+
+        function renderUpcomingEvents() {
+    const container = document.getElementById('upcomingEventsList');
+    container.innerHTML = '';
+    
+    const filtered = allEvents.filter(e => {
+        // 【關鍵修正】這裡對齊 Google Sheets 表頭名稱 AssignedCoachIDs
+        const assignedIds = e.AssignedCoachIDs ? String(e.AssignedCoachIDs).split(',').filter(x=>x) : [];
+        return currentUser.Role === 'admin' || e.CreatedBy === currentUser.LineID || assignedIds.includes(currentUser.LineID);
+    }).sort((a,b) => String(a.Date).localeCompare(String(b.Date)) || String(a.TimeRange).localeCompare(String(b.TimeRange)));
+
+    if (filtered.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">本月無您相關的排程安排</p>`;
+        return;
+    }
+    
+    filtered.forEach(ev => {
+        const row = document.createElement('div');
+        row.className = "flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all cursor-pointer border border-slate-100";
+        row.setAttribute('onclick', `openDateModal('${formatGASDateString(ev.Date)}')`);
+        
+        let color = "bg-slate-400";
+        if (ev.Status === 'Full') color = "bg-red-500";
+        if (ev.Status === 'Available') color = "bg-green-500";
+        if (ev.Status === 'Requested') color = "bg-amber-500";
+        if (ev.Status === 'Open') color = "bg-blue-500";
+        
+        row.innerHTML = `<div class="flex items-center min-w-0"><span class="w-2.5 h-2.5 rounded-full ${color} inline-block mr-2"></span><div class="min-w-0"><p class="text-xs font-bold text-slate-800 truncate">${ev.CourseName || '教練空檔'}</p><p class="text-[10px] text-slate-500 mt-0.5">${formatGASDateString(ev.Date)} | ${ev.TimeRange}</p></div></div><i class="fa-solid fa-chevron-right text-slate-300 text-xs pl-2"></i>`;
+        
+        container.appendChild(row);
+    });
+}
+        
 
         // ==========================================
         // API 請求與表單提交
