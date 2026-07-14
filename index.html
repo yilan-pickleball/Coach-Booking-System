@@ -719,46 +719,60 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
 });
 
         // 3. 管理員建立時段
-        document.getElementById('adminCreateForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const startTime = document.getElementById('admStartTime').value;
-            const endTime = document.getElementById('admEndTime').value;
-            if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
+        // 3. 管理員建立時段 (統一處理，防止重複監聽)
+const adminCreateForm = document.getElementById('adminCreateForm');
+adminCreateForm.removeEventListener('submit', handleAdminSubmit); // 先移除可能存在的舊監聽
+adminCreateForm.addEventListener('submit', handleAdminSubmit);
 
-            const combinedStudentInfo = document.getElementById('admStudentName').value.trim() + ' (' + document.getElementById('admPhone').value.trim() + ')';
-            
-            // [新增] 抓取選擇的教練 ID 與姓名
-            const coachSelect = document.getElementById('admAssignedCoach');
-            const assignedCoachId = coachSelect.value;
-            const assignedCoachName = assignedCoachId ? coachSelect.options[coachSelect.selectedIndex].text : '';
+async function handleAdminSubmit(e) {
+    e.preventDefault();
+    console.log("管理員表單送出中..."); // 除錯用：按 F12 打開開發者工具可看到
+    
+    const startTime = document.getElementById('admStartTime').value;
+    const endTime = document.getElementById('admEndTime').value;
+    
+    if (!startTime || !endTime || startTime >= endTime) {
+        Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
+        return;
+    }
 
-            try {
-                Swal.showLoading();
-                const res = await callGAS('createSlot', { 
-                    CreatedBy: currentUser.LineID, 
-                    CourseName: document.getElementById('admCourseName').value.trim(), 
-                    StudentName: combinedStudentInfo, 
-                    Date: document.getElementById('admDate').value, 
-                    TimeRange: `${startTime} - ${endTime}`, 
-                    Location: document.getElementById('admLocation').value.trim(), 
-                    RequiredCoaches: document.getElementById('admRequiredCoaches').value,
-                    AssignedCoachID: assignedCoachId,      // [新增]
-                    AssignedCoachName: assignedCoachName   // [新增]
-                });
-                if (res.status === "success") { closeModal('adminCreateModal'); Swal.fire('建立成功', '', 'success').then(() => { loadSystemData(); }); }
-                else { throw new Error(res.message); }
-            } catch (err) { Swal.fire('建立失敗', err.message, 'error'); }
+    // 檢查欄位是否存在
+    const studentNameEl = document.getElementById('admStudentName');
+    const phoneEl = document.getElementById('admPhone');
+    if (!studentNameEl || !phoneEl) {
+        Swal.fire('錯誤', '找不到表單欄位，請檢查 HTML 是否完整', 'error');
+        return;
+    }
+
+    const combinedStudentInfo = studentNameEl.value.trim() + ' (' + phoneEl.value.trim() + ')';
+    const coachSelect = document.getElementById('admAssignedCoach');
+    const assignedCoachId = coachSelect ? coachSelect.value : '';
+    const assignedCoachName = (coachSelect && coachSelect.value) ? coachSelect.options[coachSelect.selectedIndex].text : '';
+
+    try {
+        Swal.showLoading();
+        const res = await callGAS('createSlot', { 
+            CreatedBy: currentUser.LineID, 
+            CourseName: document.getElementById('admCourseName').value.trim(), 
+            StudentName: combinedStudentInfo, 
+            Date: document.getElementById('admDate').value, 
+            TimeRange: `${startTime} - ${endTime}`, 
+            Location: document.getElementById('admLocation').value.trim(), 
+            RequiredCoaches: document.getElementById('admRequiredCoaches').value,
+            AssignedCoachID: assignedCoachId,
+            AssignedCoachName: assignedCoachName
         });
-
-        document.getElementById('adminAssignForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            try {
-                Swal.showLoading();
-                const res = await callGAS('assignCourseToAvailability', { OperatedBy: currentUser.LineID, SlotID: document.getElementById('assignSlotId').value, CourseName: document.getElementById('assignCourseName').value.trim(), StudentName: document.getElementById('assignStudentName').value.trim(), Location: document.getElementById('assignLocation').value.trim() });
-                if (res.status === "success") { closeModal('adminAssignModal'); Swal.fire('指派成功', '', 'success').then(() => { loadSystemData(); }); }
-                else { throw new Error(res.message); }
-            } catch (err) { Swal.fire('指派失敗', err.message, 'error'); }
-        });
+        if (res.status === "success") { 
+            closeModal('adminCreateModal'); 
+            Swal.fire('建立成功', '', 'success').then(() => { loadSystemData(); }); 
+        } else { 
+            throw new Error(res.message); 
+        }
+    } catch (err) { 
+        console.error("API 錯誤:", err);
+        Swal.fire('建立失敗', err.message, 'error'); 
+    }
+}
 
         async function handleClaimSlot(slotId, currentLocation) {
             const { value: selectedLocation } = await Swal.fire({ title: '確認接課？', input: 'text', inputValue: currentLocation || '', inputPlaceholder: '請輸入確定上課球場', showCancelButton: true, confirmButtonText: '確定', cancelButtonText: '取消', inputValidator: (v) => { if(!v) return '地點必填'; } });
@@ -926,18 +940,35 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
         });
 
        // 3. 管理員建立時段
-            document.getElementById('adminCreateForm').addEventListener('submit', async function(e) {
+           // 3. 管理員建立時段 (統一處理，防止重複監聽)
+const adminCreateForm = document.getElementById('adminCreateForm');
+adminCreateForm.removeEventListener('submit', handleAdminSubmit); // 先移除可能存在的舊監聽
+adminCreateForm.addEventListener('submit', handleAdminSubmit);
+
+async function handleAdminSubmit(e) {
     e.preventDefault();
+    console.log("管理員表單送出中..."); // 除錯用：按 F12 打開開發者工具可看到
+    
     const startTime = document.getElementById('admStartTime').value;
     const endTime = document.getElementById('admEndTime').value;
-    if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
-
-    const combinedStudentInfo = document.getElementById('admStudentName').value.trim() + ' (' + document.getElementById('admPhone').value.trim() + ')';
     
-    // 【關鍵新增】抓取選擇的教練 ID 與姓名
+    if (!startTime || !endTime || startTime >= endTime) {
+        Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
+        return;
+    }
+
+    // 檢查欄位是否存在
+    const studentNameEl = document.getElementById('admStudentName');
+    const phoneEl = document.getElementById('admPhone');
+    if (!studentNameEl || !phoneEl) {
+        Swal.fire('錯誤', '找不到表單欄位，請檢查 HTML 是否完整', 'error');
+        return;
+    }
+
+    const combinedStudentInfo = studentNameEl.value.trim() + ' (' + phoneEl.value.trim() + ')';
     const coachSelect = document.getElementById('admAssignedCoach');
-    const assignedCoachId = coachSelect.value;
-    const assignedCoachName = assignedCoachId ? coachSelect.options[coachSelect.selectedIndex].text : '';
+    const assignedCoachId = coachSelect ? coachSelect.value : '';
+    const assignedCoachName = (coachSelect && coachSelect.value) ? coachSelect.options[coachSelect.selectedIndex].text : '';
 
     try {
         Swal.showLoading();
@@ -949,14 +980,20 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
             TimeRange: `${startTime} - ${endTime}`, 
             Location: document.getElementById('admLocation').value.trim(), 
             RequiredCoaches: document.getElementById('admRequiredCoaches').value,
-            AssignedCoachID: assignedCoachId,      // 新增傳輸欄位
-            AssignedCoachName: assignedCoachName   // 新增傳輸欄位
+            AssignedCoachID: assignedCoachId,
+            AssignedCoachName: assignedCoachName
         });
-        if (res.status === "success") { closeModal('adminCreateModal'); Swal.fire('建立成功', '', 'success').then(() => { loadSystemData(); }); }
-        else { throw new Error(res.message); }
-    } catch (err) { Swal.fire('建立失敗', err.message, 'error'); }
-});
-
+        if (res.status === "success") { 
+            closeModal('adminCreateModal'); 
+            Swal.fire('建立成功', '', 'success').then(() => { loadSystemData(); }); 
+        } else { 
+            throw new Error(res.message); 
+        }
+    } catch (err) { 
+        console.error("API 錯誤:", err);
+        Swal.fire('建立失敗', err.message, 'error'); 
+    }
+}
         
         // ==========================================
         // 開啟視窗與輔助函式 (統一清除舊版殘留)
