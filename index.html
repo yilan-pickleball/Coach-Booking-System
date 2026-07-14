@@ -1,345 +1,1246 @@
+直接在常用應用程式中試用 AI 功能 … 使用 Gemini 生成草稿及潤飾內容，並體驗採用 Google 新一代 AI 技術的 Gemini Pro
+Index.html
+1
+100%
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>匹克球排課系統</title>
-  
-  <link rel="preconnect" href="https://script.google.com">
-  <link rel="preconnect" href="https://static.line-scdn.net">
-  <link rel="preconnect" href="https://cdn.tailwindcss.com">
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  
-  <style> #calendar { max-width: 100%; height: 80vh; margin: 0 auto; font-size: 0.9rem; } .fc-event { cursor: pointer; } </style>
-</head>
-<body class="bg-gray-50 text-gray-800">
-
-  <nav class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
-    <h1 class="text-lg font-bold" id="nav-title">🍪  系統載入中...</h1>
-    <div class="flex gap-2 items-center">
-      <button id="applyCoachBtn" onclick="applyForCoach()" class="bg-white text-blue-600 px-3 py-1 rounded text-sm font-bold hidden shadow hover:bg-gray-100">申請成為教練</button>
-      <select id="roleSelector" class="bg-blue-800 text-white text-sm rounded p-1 border border-blue-500 hidden" onchange="changeRole()"></select>
-    </div>
-  </nav>
-
-  <div class="p-4"><div id="calendar" class="bg-white rounded-lg shadow-sm p-2 border border-gray-200 hidden"></div></div>
-  
-  <div id="loader" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex flex-col justify-center items-center hidden z-50">
-    <div class="animate-spin rounded-full h-14 w-14 border-t-4 border-b-4 border-blue-400 mb-4"></div>
-    <p id="loader-text" class="text-white font-bold tracking-widest text-lg">處理中...</p>
-  </div>
-
-  <script>
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyltbWiDAsOxuq0udv3xF0iyrEtDRHj9cY_irWlff1iOumR-gXzz0EqYN1DbeGbOS6_nw/exec';
-    const LIFF_ID = '2010629884-Dil0QZ8F'; 
-
-    let currentRole = 'student'; let realDBRole = ''; let dbStatus = ''; 
-    let calendar; let myLineId = ''; let myCoachName = '';
-    window.isProcessingFlag = false;
-    window.initialEventsCache = null; 
-
-    document.addEventListener('DOMContentLoaded', function() { initializeLiff(); });
-
-    function initializeLiff() {
-      showLoader("正在連線至 LINE 伺服器...");
-      liff.init({ liffId: LIFF_ID }).then(() => {
-        if (!liff.isLoggedIn()) liff.login();
-        else {
-          liff.getProfile().then(profile => {
-            myLineId = profile.userId; myCoachName = profile.displayName;
-            initSystemFast(); 
-          }).catch(err => { hideLoader(); Swal.fire('錯誤', err.toString(), 'error'); });
-        }
-      }).catch(err => { hideLoader(); Swal.fire('LIFF 錯誤', err.toString(), 'error'); });
-    }
-
-    function initSystemFast() {
-      updateLoaderText("正在同步資料庫與最新課表...");
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'initSystem', data: { LineID: myLineId } }) })
-      .then(r => r.json()).then(res => {
-        hideLoader();
-        if (res.status === 'success') {
-          const user = res.data.user;
-          realDBRole = user.role; dbStatus = user.status;
-          window.initialEventsCache = parseGasEvents(res.data.events); 
-          buildRoleSelector();
-          setupUI();
-        }
-      }).catch(err => { hideLoader(); Swal.fire('連線失敗', err.toString(), 'error'); });
-    }
-
-    function buildRoleSelector() {
-      const sel = document.getElementById('roleSelector');
-      sel.innerHTML = ''; 
-
-      if (realDBRole === 'admin' && dbStatus === 'Approved') {
-        sel.add(new Option('💼 總教練視角', 'admin')); sel.add(new Option('👨🏽‍🏫 教練視角', 'coach')); sel.add(new Option('👨‍🎓 學員視角', 'student'));
-        currentRole = 'admin'; sel.classList.remove('hidden');
-      } else if (realDBRole === 'coach' && dbStatus === 'Approved') {
-        sel.add(new Option('👨🏽‍🏫 教練視角', 'coach')); sel.add(new Option('👨‍🎓 學員視角', 'student'));
-        currentRole = 'coach'; sel.classList.remove('hidden');
-      } else {
-        currentRole = 'student';
-        if (dbStatus === 'Pending') Swal.fire('審核中', '您的教練資格正在審核中，目前以學員身分瀏覽。', 'info');
-        else document.getElementById('applyCoachBtn').classList.remove('hidden');
-      }
-      sel.value = currentRole;
-    }
-
-    function applyForCoach() {
-      Swal.fire({ title: '申請成為教練', text: '送出後請通知總教練開通權限。', icon: 'info', showCancelButton: true, confirmButtonText: '確認送出' })
-      .then((res) => {
-        if (res.isConfirmed) {
-          showLoader("正在送出申請...");
-          fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'register', data: { LineID: myLineId, Name: myCoachName, Role: 'coach' } }) })
-          .then(r => r.json()).then(res => { hideLoader(); Swal.fire('已送出', '請等待審核', 'success').then(()=>location.reload()); });
-        }
-      });
-    }
-
-    function setupUI() {
-      document.getElementById('calendar').classList.remove('hidden');
-      updateNavTitle(); initCalendar();
-    }
-
-    function updateNavTitle() {
-      const roleName = { 'admin': '總教練', 'coach': '教練', 'student': '學員' }[currentRole];
-      document.getElementById('nav-title').innerText = `🍪  ${myCoachName} (${roleName})`;
-    }
-
-    function changeRole() {
-      currentRole = document.getElementById('roleSelector').value;
-      updateNavTitle(); calendar.refetchEvents(); 
-    }
-
-    function parseGasEvents(dataList) {
-      const events = [];
-      dataList.forEach(slot => {
-        if (!slot.Date || !slot.TimeRange) return; 
-        const isAvailable = slot.Status === 'Available'; const isFull = slot.Status === 'Full'; const isReq = slot.Status === 'Requested';
-        const dateStr = String(slot.Date).split('T')[0]; const timeParts = String(slot.TimeRange).split('-');
-        if (!timeParts[0] || !timeParts[1]) return;
-        const assignedNames = slot.AssignedCoachNames ? slot.AssignedCoachNames.split(',') : [];
-        const assignedIds = slot.AssignedCoachIDs ? slot.AssignedCoachIDs.split(',') : [];
-        
-        events.push({
-          id: slot.SlotID, 
-          title: isReq ? `[審核中] ${slot.CourseName}\n學員: ${slot.StudentName.split(' ')[0]}` : (isAvailable ? `[可派課] ${assignedNames.join(',')}` : `${slot.CourseName}\n教練: ${assignedNames.join(',')} (${assignedNames.length}/${slot.RequiredCoaches})`),
-          start: `${dateStr}T${timeParts[0]}`, end: `${dateStr}T${timeParts[1]}`,
-          color: isReq ? '#8B5CF6' : (isAvailable ? '#F59E0B' : (isFull ? '#9CA3AF' : '#10B981')),
-          extendedProps: { 
-            courseName: slot.CourseName, studentName: slot.StudentName, location: slot.Location, 
-            reqCoaches: slot.RequiredCoaches, currentCoaches: assignedNames.length, coachNames: assignedNames.join(','),
-            status: slot.Status, assignedToMe: assignedIds.includes(myLineId), createdByMe: slot.CreatedBy === myLineId
-          }
-        });
-      });
-      return events;
-    }
-
-    function initCalendar() {
-      if (calendar) calendar.destroy(); 
-      var calendarEl = document.getElementById('calendar');
-      calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek', headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,timeGridWeek' }, locale: 'zh-tw', allDaySlot: false, slotMinTime: "08:00:00", slotMaxTime: "22:00:00",
-        events: function(info, successCallback, failureCallback) {
-          if (window.initialEventsCache) {
-            successCallback(window.initialEventsCache);
-            window.initialEventsCache = null; 
-            return;
-          }
-          showLoader("正在更新課表...");
-          fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getCalendarEvents', data: { LineID: myLineId, Role: currentRole } }) })
-          .then(r => r.json()).then(res => {
-            hideLoader(); successCallback(parseGasEvents(res.data));
-          }).catch(err => { hideLoader(); failureCallback(); });
-        },
-
-        dateClick: function(info) {
-          if (window.isProcessingFlag) return; 
-          let dateStr = info.dateStr; let defaultStart = "14:00"; let defaultEnd = "16:00";
-          if (dateStr.includes('T')) { const d = new Date(dateStr); defaultStart = d.toTimeString().substring(0,5); defaultEnd = new Date(d.getTime()+7200000).toTimeString().substring(0,5); dateStr = dateStr.split('T')[0]; }
-
-          if (currentRole === 'student') {
-             Swal.fire({
-              title: '預約上課申請', 
-              html: `<select id="swal-type" class="swal2-input !mt-2"><option value="一對一">一對一</option><option value="一對二">一對二</option><option value="一對三">一對三</option><option value="一對四">一對四</option><option value="特殊團課">特殊團課</option></select><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員代表姓名 (必填)"><input type="tel" id="swal-phone" class="swal2-input !mt-2" placeholder="連絡電話 (必填)"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div><input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="上課地點 (選填)">`, showCancelButton: true, confirmButtonText: '送出申請',
-              preConfirm: () => {
-                const v = { type: document.getElementById('swal-type').value, student: document.getElementById('swal-student').value.trim(), phone: document.getElementById('swal-phone').value.trim(), date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value };
-                if(!v.student || !v.phone || !v.date || !v.start || !v.end) { Swal.showValidationMessage('請確實填寫必填欄位！'); return false; }
-                if(v.start >= v.end) { Swal.fire('時間錯誤', '結束時間必須晚於起始時間', 'error'); return false; }
-                return v;
-              }
-            }).then((res) => { if (res.isConfirmed) callApi('requestCourse', { CourseType: res.value.type, StudentName: res.value.student, Phone: res.value.phone, Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: res.value.loc, CreatedBy: myLineId }, '申請已送出，請等候核准'); });
-          }
-          else if (currentRole === 'coach') {
-             Swal.fire({
-              title: '提報空檔', html: `<input type="date" id="swal-date" class="swal2-input !mt-0" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div><input type="text" id="swal-loc" class="swal2-input !mt-2" placeholder="偏好地點 (選填)">`, showCancelButton: true, confirmButtonText: '送出空檔',
-              preConfirm: () => ({ date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value, loc: document.getElementById('swal-loc').value })
-            }).then((res) => { if (res.isConfirmed) callApi('submitAvailability', { Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: res.value.loc, CoachID: myLineId, CoachName: myCoachName }, '空檔已送出'); });
-          } else if (currentRole === 'admin') {
-             Swal.fire({
-              title: '發布課程', html: `<input type="text" id="swal-course" class="swal2-input !mt-2" placeholder="課程名稱"><input type="text" id="swal-student" class="swal2-input !mt-2" placeholder="學員姓名"><input type="number" id="swal-req" class="swal2-input !mt-2" placeholder="需求人數" value="1"><input type="date" id="swal-date" class="swal2-input !mt-2" value="${dateStr}"><div class="flex gap-2 mt-2"><input type="time" id="swal-start" class="swal2-input !mt-0 !w-1/2" value="${defaultStart}"><span>至</span><input type="time" id="swal-end" class="swal2-input !mt-0 !w-1/2" value="${defaultEnd}"></div>`, showCancelButton: true,
-              preConfirm: () => ({ course: document.getElementById('swal-course').value, student: document.getElementById('swal-student').value, req: document.getElementById('swal-req').value, date: document.getElementById('swal-date').value, start: document.getElementById('swal-start').value, end: document.getElementById('swal-end').value })
-            }).then((res) => { if (res.isConfirmed) callApi('createSlot', { CourseName: res.value.course, StudentName: res.value.student, RequiredCoaches: res.value.req, Date: res.value.date, TimeRange: `${res.value.start}-${res.value.end}`, Location: '', CreatedBy: myLineId }, '已發布'); });
-          }
-        },
-
-        eventClick: function(info) {
-          if (window.isProcessingFlag) return; 
-          const ev = info.event; const p = ev.extendedProps;
-          
-          if (currentRole === 'student') {
-             if (p.status === 'Requested') {
-                Swal.fire({ title: '申請審核中', text: '請等候總教練核准與安排教練', icon: 'info', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 撤回申請', cancelButtonText: '關閉' }).then(res => { if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已撤回申請'); });
-             } else {
-                Swal.fire({ title: '課程資訊', html: `課程: ${p.courseName}<br>地點: ${p.location || '安排中'}<br>教練: ${p.coachNames || '等待中'}`, icon: 'info' });
-             }
-          } else if (currentRole === 'coach') {
-            if (p.status === 'Available' && p.createdByMe) {
-               Swal.fire({ title: '取消提報', icon: 'info', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 取消', cancelButtonText: '關閉' }).then(res => { if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已移除'); });
-            } else if (p.assignedToMe) {
-               Swal.fire({ title: '您的課程', text: `地點: ${p.location}`, icon: 'info', showDenyButton: true, showCancelButton: true, confirmButtonText: '✅ 簽到', denyButtonText: '❌ 取消接課', cancelButtonText: '關閉' }).then(res => { if (res.isConfirmed) Swal.fire('提示', `準備帶入簽到系統\nBookingID: ${ev.id}`, 'success'); else if (res.isDenied) callApi('cancelClaim', { SlotID: ev.id, CoachID: myLineId }, '已退課'); });
-            } else if (p.status === 'Open') {
-               // 🔴 關鍵更新：接課時強制要求設定地點 (可點選預設或自己輸入)
-               Swal.fire({ 
-                 title: '確認接課？', 
-                 html: `
-                   <div class="text-left text-sm mb-2 text-gray-700 border-b pb-2">課程：${p.courseName}<br>學員：${p.studentName.split(' ')[0]}<br>目前設定地點：${p.location || '尚未決定'}</div>
-                   <div class="text-left text-sm font-bold text-red-600 mb-1 mt-3">請設定最終上課地點 (教練必填)：</div>
-                   <input list="loc-options" id="swal-claim-loc" class="swal2-input !mt-0" placeholder="請點擊選擇或自行輸入" value="${p.location || ''}">
-                   <datalist id="loc-options">
-                     <option value="宜蘭國民運動中心"></option>
-                     <option value="宜蘭運動公園光電風雨球場"></option>
-                   </datalist>
-                 `,
-                 icon: 'question', showCancelButton: true, confirmButtonText: '確定接課',
-                 preConfirm: () => {
-                   const loc = document.getElementById('swal-claim-loc').value.trim();
-                   if (!loc) { Swal.showValidationMessage('請務必輸入或選擇上課地點！'); return false; }
-                   return loc;
-                 }
-               }).then(res => { if (res.isConfirmed) claimSlot(ev.id, res.value); });
-            } else { Swal.fire({ title: '課程已滿編', icon: 'warning' }); }
-          } else if (currentRole === 'admin') { 
-            if (p.status === 'Requested') {
-               Swal.fire({ title: '學員預約審核', html: `<b>${p.courseName}</b><br>學員: ${p.studentName}<br>地點: ${p.location || '未定'}`, icon: 'question', showDenyButton: true, showCancelButton: true, confirmButtonText: '✅ 核准 (開放教練接課)', denyButtonText: '🗑️ 拒絕並刪除', cancelButtonText: '關閉' })
-               .then(res => { if(res.isConfirmed) callApi('approveRequest', { SlotID: ev.id, OperatedBy: myLineId }, '已核准並開放接課'); else if(res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已刪除申請'); });
-            } else if (p.status === 'Available') {
-               Swal.fire({ title: '指派課程', html: `<input type="text" id="assign-course" class="swal2-input !mt-0" placeholder="課程名稱"><input type="text" id="assign-student" class="swal2-input" placeholder="學員姓名">`, showCancelButton: true, preConfirm: () => ({ course: document.getElementById('assign-course').value, student: document.getElementById('assign-student').value }) })
-               .then(res => { if(res.isConfirmed) callApi('assignCourseToAvailability', { SlotID: ev.id, CourseName: res.value.course, StudentName: res.value.student, OperatedBy: myLineId }, '指派成功'); });
-            } else {
-               Swal.fire({ title: '刪除排課', icon: 'warning', showDenyButton: true, showCancelButton: true, showConfirmButton: false, denyButtonText: '🗑️ 刪除' }).then(res => { if (res.isDenied) callApi('deleteSlot', { SlotID: ev.id, OperatedBy: myLineId }, '已刪除'); });
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>匹克球預約與排課系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS Config for theme customization -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        pickleball: {
+                            50: '#f4fbf0',
+                            100: '#e5f7db',
+                            200: '#ceefbb',
+                            300: '#ade292',
+                            400: '#87cf65',
+                            500: '#62b23f',
+                            600: '#4b912f',
+                            700: '#3c7327',
+                            800: '#325c23',
+                            900: '#2c4f21',
+                            950: '#142c0d',
+                        }
+                    }
+                }
             }
-          }
         }
-      });
-      calendar.render();
-    }
+    </script>
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SweetAlert2 for beautiful modern alerts -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- LINE LIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        /* Custom scrollbar for mobile calendar items */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Grid styling */
+        .calendar-grid-cell {
+            aspect-ratio: 1;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
 
-    function callApi(actionName, payload, successMsg) {
-      window.isProcessingFlag = true; showLoader("正在儲存資料..."); 
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: actionName, data: payload }) }).then(r => r.json()).then(res => { 
-        window.isProcessingFlag = false; hideLoader(); 
-        if(res.status === 'success') { Swal.fire('成功', successMsg, 'success'); calendar.refetchEvents(); } else Swal.fire('失敗', res.message, 'error');
-      });
-    }
-
-    // 🔴 加入地點參數傳遞
-    function claimSlot(slotId, locationStr) {
-      callApi('claimSlot', { SlotID: slotId, CoachID: myLineId, CoachName: myCoachName, Location: locationStr }, '成功認領！');
-    }
-
-    function showLoader(text) { 
-      if(text) document.getElementById('loader-text').innerText = text;
-      document.getElementById('loader').classList.remove('hidden'); 
-    }
-    function updateLoaderText(text) { document.getElementById('loader-text').innerText = text; }
-    function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
- 
-// 假設這是您從後端取得並儲存的當月所有行程資料
-let allEvents = []; 
-
-/**
- * 打開特定日期的 Modal
- * @param {string} selectedDate - 格式如 '2026-07-14'
- */
-function openDateModal(selectedDate) {
-    const modal = document.getElementById('dateModal');
-    const content = document.getElementById('modalContent');
-    const title = document.getElementById('modalDateTitle');
-
-    // 設定標題
-    title.innerText = `${selectedDate} 的詳細資訊`;
-    
-    // 清空先前內容
-    content.innerHTML = ''; 
-
-    // 過濾出該日期的所有行程
-    const dayEvents = allEvents.filter(event => event.Date === selectedDate);
-
-    if (dayEvents.length === 0) {
-        // 若當日無行程
-        content.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-8 text-gray-400">
-                <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                <p>本日尚無任何排程</p>
-            </div>`;
-    } else {
-        // 若當日有行程，進行迴圈渲染
-        dayEvents.forEach(event => {
-            // 處理狀態的 UI 顏色顯示 (可依據後端的 Open, Full, Requested, Available 等狀態自定義)
-            let statusColor = event.Status === 'Available' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
-            
-            // 組合單一行程卡片
-            const eventCard = `
-                <div class="p-4 border border-gray-100 rounded-xl bg-gray-50 shadow-sm">
-                    <div class="flex justify-between items-start mb-2">
-                        <div class="font-bold text-gray-800 text-lg">${event.CourseName || '教練空檔'}</div>
-                        <span class="text-xs px-2 py-1 rounded-full font-medium ${statusColor}">${event.Status}</span>
-                    </div>
-                    <div class="text-sm text-gray-600 flex items-center mb-1">
-                        <span class="mr-2">⏰</span> ${event.TimeRange}
-                    </div>
-                    <div class="text-sm text-gray-600 flex items-center">
-                        <span class="mr-2">📍</span> ${event.Location || '待確認'}
-                    </div>
-                </div>
-            `;
-            content.innerHTML += eventCard;
-        });
-    }
-
-    // 顯示 Modal
-    modal.classList.remove('hidden');
-}
-
-/**
- * 關閉 Modal
- */
-function closeDateModal() {
-    document.getElementById('dateModal').classList.add('hidden');
-}
-
-
- </script>
-</body>
-<div id="dateModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 flex items-center justify-center transition-opacity">
-    <div class="bg-white rounded-lg shadow-lg w-11/12 max-w-md p-6 relative">
-        <div class="flex justify-between items-center border-b border-gray-200 pb-3 mb-3">
-            <h3 id="modalDateTitle" class="text-xl font-bold text-gray-800">YYYY-MM-DD 行程</h3>
-            <button onclick="closeDateModal()" class="text-gray-400 hover:text-red-500 text-2xl font-bold transition-colors">&times;</button>
-        </div>
-        
-        <div id="modalContent" class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+    <!-- 頂部導航欄 (Header) -->
+    <header class="bg-emerald-700 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-table-tennis-paddle-ball text-pickleball-300 text-2xl"></i>
+                <h1 class="text-lg font-bold tracking-wide">匹克球預約排課系統</h1>
             </div>
+            <!-- 使用者角色標籤 -->
+            <div id="userBadge" class="hidden flex items-center space-x-1.5 bg-emerald-800 px-2.5 py-1 rounded-full text-xs font-semibold">
+                <i class="fa-solid fa-circle text-gray-400 text-[10px]" id="roleDot"></i>
+                <span id="roleLabel">讀取中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區 (適配手機寬度) -->
+    <main class="flex-grow max-w-md w-full mx-auto px-4 py-4 pb-24">
+        
+        <!-- Loading 狀態遮罩 -->
+        <div id="loadingScreen" class="flex flex-col items-center justify-center py-20 space-y-4">
+            <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent"></div>
+            <p class="text-slate-500 text-sm">正在載入系統資料，請稍候...</p>
+        </div>
+
+        <!-- 1. 註冊與狀態審核區 (Register & Pending View) -->
+        <section id="registerSection" class="hidden space-y-6">
+            <!-- 狀態 A: 尚未註冊 (None) -->
+            <div id="registerFormBox" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-pickleball-100 text-pickleball-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fa-solid fa-address-card text-2xl"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800">歡迎加入系統</h2>
+                    <p class="text-slate-500 text-xs mt-1">首次使用請先填寫基本資料，管理員審核通過後即可開始預約。</p>
+                </div>
+                
+                <form id="registerForm" class="space-y-4">
+                    <div>
+                        <label class="block text-slate-700 text-sm font-semibold mb-1">真實姓名</label>
+                        <input type="text" id="regName" required class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm" placeholder="請輸入您的真實姓名">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 text-sm font-semibold mb-1">身分角色</label>
+                        <select id="regRole" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm">
+                            <option value="student">我是學員 (可申請預約課程)</option>
+                            <option value="coach">我是教練 (提供空檔/承接課程)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-md shadow-emerald-100 mt-2 text-sm">
+                        確認送出申請
+                    </button>
+                </form>
+            </div>
+
+            <!-- 狀態 B: 審核中 (Pending) -->
+            <div id="pendingReviewBox" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center">
+                <div class="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                    <i class="fa-solid fa-clock-rotate-left text-2xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-800">資料審核中</h2>
+                <p class="text-slate-500 text-sm mt-2 px-4 leading-relaxed">
+                    您的註冊申請已成功送出！請耐心等待管理員為您開啟權限。
+                </p>
+                <div class="mt-6 text-xs text-slate-400 bg-slate-50 py-2 rounded-lg">
+                    系統 UID: <span id="pendingUid" class="font-mono"></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. 主功能區 (Dashboard View - 審核通過 Approved 後顯示) -->
+        <section id="dashboardSection" class="hidden space-y-6">
+            
+            <!-- 快速操作按鈕列 (根據不同角色顯示) -->
+            <div id="actionButtons" class="grid grid-cols-2 gap-3">
+                <!-- 學員按鈕 -->
+                <button onclick="showRequestCourseModal()" id="btnStudentRequest" class="hidden flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-4 rounded-xl font-medium shadow-sm transition-all text-sm">
+                    <i class="fa-solid fa-calendar-plus"></i>
+                    <span>提出預約申請</span>
+                </button>
+                
+                <!-- 教練按鈕 -->
+                <button onclick="showSubmitAvailabilityModal()" id="btnCoachAvailable" class="hidden flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-4 rounded-xl font-medium shadow-sm transition-all text-sm">
+                    <i class="fa-solid fa-clock"></i>
+                    <span>提交授課空檔</span>
+                </button>
+
+                <!-- 管理員按鈕 -->
+                <button onclick="showCreateSlotModal()" id="btnAdminCreate" class="hidden flex items-center justify-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-xl font-medium shadow-sm transition-all text-sm">
+                    <i class="fa-solid fa-folder-plus"></i>
+                    <span>手動新增時段</span>
+                </button>
+
+                <!-- 共用：刷新 -->
+                <button onclick="loadSystemData()" class="flex items-center justify-center space-x-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 py-3 px-4 rounded-xl font-medium transition-all text-sm">
+                    <i class="fa-solid fa-rotate"></i>
+                    <span>整理/刷新時段</span>
+                </button>
+            </div>
+
+            <!-- 行事曆主卡片 -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <!-- 行事曆標頭 (切換月份) -->
+                <div class="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
+                    <button onclick="changeMonth(-1)" class="p-2 hover:bg-slate-200 rounded-full transition-all">
+                        <i class="fa-solid fa-chevron-left text-slate-600"></i>
+                    </button>
+                    <span id="calendarMonthYear" class="font-bold text-slate-800 text-base">2026 年 07 月</span>
+                    <button onclick="changeMonth(1)" class="p-2 hover:bg-slate-200 rounded-full transition-all">
+                        <i class="fa-solid fa-chevron-right text-slate-600"></i>
+                    </button>
+                </div>
+
+                <!-- 星期標頭 -->
+                <div class="grid grid-cols-7 gap-1 text-center py-2 text-xs font-semibold text-slate-400 border-b border-slate-50">
+                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                </div>
+
+                <!-- 行事曆日期網格 -->
+                <div id="calendarGrid" class="grid grid-cols-7 gap-1 p-2 bg-white">
+                    <!-- JS 動態生成 -->
+                </div>
+            </div>
+
+            <!-- 本月行程列表 (底部快速預覽) -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+                <h3 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                    <span class="w-1.5 h-4 bg-emerald-500 rounded-full inline-block"></span>
+                    <span>我的排程 / 本月所有行程</span>
+                </h3>
+                <div id="upcomingEventsList" class="space-y-2.5 max-h-60 overflow-y-auto custom-scrollbar">
+                    <!-- JS 動態生成 -->
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- 底部資訊與版權 -->
+    <footer class="bg-slate-100 text-center py-4 border-t border-slate-200 text-xs text-slate-400 mt-auto">
+        <p>© 2026 宜蘭匹克球培訓基地 - 全端資深架構設計</p>
+    </footer>
+
+    <!-- ========================================================================= -->
+    <!-- 👑 核心彈出式詳細資訊窗框 (Responsive Detail Modal) -->
+    <!-- ========================================================================= -->
+    <div id="dateModal" class="fixed inset-0 z-50 hidden bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-300">
+        <!-- 遮罩背景點擊關閉 -->
+        <div class="absolute inset-0" onclick="closeDateModal()"></div>
+        
+        <!-- 視窗主體：手機版上浮(Bottom Sheet)，電腦版置中 -->
+        <div class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md p-6 relative z-10 transform translate-y-full sm:translate-y-0 transition-transform duration-300 flex flex-col max-h-[85vh] sm:max-h-[75vh]">
+            <!-- 手機版拖動條 -->
+            <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden"></div>
+            
+            <!-- 標題與關閉按鈕 -->
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
+                <div class="flex items-center space-x-2 text-emerald-700">
+                    <i class="fa-solid fa-calendar-day text-lg"></i>
+                    <h3 id="modalDateTitle" class="text-lg font-bold text-slate-800">詳細資訊</h3>
+                </div>
+                <button onclick="closeDateModal()" class="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-100 rounded-full transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <!-- 行程列表容器 -->
+            <div id="modalContent" class="space-y-4 overflow-y-auto pr-1 flex-grow custom-scrollbar">
+                <!-- JS 動態寫入內容 -->
+            </div>
+        </div>
     </div>
-</div>
 
+    <!-- ========================================================================= -->
+    <!-- 🚀 其他各種功能彈出視窗 (學員預約、教練空檔、管理員新增) -->
+    <!-- ========================================================================= -->
+    
+    <!-- A. 學員提出預約申請 Modal -->
+    <div id="studentRequestModal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
+            <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2"><i class="fa-solid fa-user-pen text-emerald-600 mr-2"></i>學員課程預約申請</h3>
+            <form id="studentRequestForm" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">課程類型 / 名稱</label>
+                    <select id="reqCourseType" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="【學員預約】匹克球一對一家教課">匹克球一對一家教課</option>
+                        <option value="【學員預約】匹克球雙人家教課">匹克球雙人家教課</option>
+                        <option value="【學員預約】團課培訓班 (多人)">團課培訓班 (多人)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">聯絡人真實姓名與電話</label>
+                    <input type="text" id="reqStudentName" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="範例：王大同 (0912-345678)">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">日期 (YYYY-MM-DD)</label>
+                    <input type="date" id="reqDate" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">時段範圍 (例如: 14:00 - 16:00)</label>
+                    <input type="text" id="reqTimeRange" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="請輸入欲預約上課的時段">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">指定上課場地</label>
+                    <input type="text" id="reqLocation" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="請指定球場或練習場地點">
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeModal('studentRequestModal')" class="w-1/2 border py-2 rounded-lg text-sm text-slate-500">取消</button>
+                    <button type="submit" class="w-1/2 bg-emerald-600 text-white py-2 rounded-lg text-sm font-semibold">送出申請</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- B. 教練提交空檔 Modal -->
+    <div id="coachAvailabilityModal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
+            <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2"><i class="fa-solid fa-clock text-emerald-600 mr-2"></i>教練填寫可授課空檔</h3>
+            <form id="coachAvailabilityForm" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">授課日期</label>
+                    <input type="date" id="availDate" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">可授課時段 (例如: 09:00 - 11:00)</label>
+                    <input type="text" id="availTimeRange" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="請輸入您方便上課的時間">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">希望教學球場 / 地點</label>
+                    <input type="text" id="availLocation" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="請填寫地點(強制地點規範)">
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeModal('coachAvailabilityModal')" class="w-1/2 border py-2 rounded-lg text-sm text-slate-500">取消</button>
+                    <button type="submit" class="w-1/2 bg-emerald-600 text-white py-2 rounded-lg text-sm font-semibold">送出空檔</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- C. 管理員直接新增課程時段 Modal -->
+    <div id="adminCreateModal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
+            <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2"><i class="fa-solid fa-shield-halved text-purple-600 mr-2"></i>系統管理員新增時段</h3>
+            <form id="adminCreateForm" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">課程名稱</label>
+                    <input type="text" id="admCourseName" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例：匹克球週末公開團課">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">學員代表名稱 / 資訊</label>
+                    <input type="text" id="admStudentName" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例：林小明 或 團體課學員">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">上課日期</label>
+                    <input type="date" id="admDate" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">上課時段</label>
+                    <input type="text" id="admTimeRange" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例：10:00 - 12:00">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">上課地點</label>
+                    <input type="text" id="admLocation" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="請填寫地點">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">所需教練編制人數</label>
+                    <input type="number" id="admRequiredCoaches" value="1" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeModal('adminCreateModal')" class="w-1/2 border py-2 rounded-lg text-sm text-slate-500">取消</button>
+                    <button type="submit" class="w-1/2 bg-purple-600 text-white py-2 rounded-lg text-sm font-semibold">建立時段</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- D. 管理員指派課程 Modal (針對教練空檔 Aallable 的時段) -->
+    <div id="adminAssignModal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative">
+            <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2"><i class="fa-solid fa-user-check text-purple-600 mr-2"></i>為教練空檔指派課程</h3>
+            <form id="adminAssignForm" class="space-y-3.5">
+                <input type="hidden" id="assignSlotId">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">指派課程名稱</label>
+                    <input type="text" id="assignCourseName" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例：學員王小華一對一家教課">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">預約學員資訊</label>
+                    <input type="text" id="assignStudentName" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="例：王小華 (0988-123456)">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">授課地點</label>
+                    <input type="text" id="assignLocation" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="留空則沿用教練填寫之地點">
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeModal('adminAssignModal')" class="w-1/2 border py-2 rounded-lg text-sm text-slate-500">取消</button>
+                    <button type="submit" class="w-1/2 bg-purple-600 text-white py-2 rounded-lg text-sm font-semibold">確認派課</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- ⚙️ 系統核心 JavaScript (全端運作與同步核心) -->
+    <!-- ========================================================================= -->
+    <script>
+        // ----------------------------------------------------
+        // 1. 基本設定（請將此設定改為您的 GAS Web App API 網址）
+        // ----------------------------------------------------
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycby2C69Cw97GreQgy28SgqkGkx4w5COOelvSlXXpVxMabnRcNyOZGg_KFGMYfuGl_H0E/exec"; // 請替換成您在 code.gs 部署後的 Web App URL
+        const LIFF_ID = "YOUR_LIFF_ID_HER2010629884-Dil0QZ8F"; // 請替換成您的 LINE Developers 中的 LIFF ID
+
+        // ----------------------------------------------------
+        // 2. 全域狀態管理
+        // ----------------------------------------------------
+        let currentUser = {
+            LineID: "",
+            Name: "訪客",
+            Role: "student",
+            Status: "None"
+        };
+        let allEvents = []; // 儲存全月載入的課程時段
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth(); // 0 - 11
+
+        // 測試模式 (為了方便在 PC、Local 甚至 LINE 開發除錯，可利用 url 參數 bypass LIFF)
+        const isMockMode = new URLSearchParams(window.location.search).get('mock') === '1' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const mockLineId = new URLSearchParams(window.location.search).get('lineId') || "Ud857f472593d4263cdf8353f1e34ef88"; // 預設最高管理員測試
+
+        // ----------------------------------------------------
+        // 3. 初始化載入
+        // ----------------------------------------------------
+        window.onload = function() {
+            initSystem();
+        };
+
+        async function initSystem() {
+            try {
+                if (isMockMode) {
+                    console.warn("⚠️ 目前為開發者測試/模擬模式。模擬的 LINE ID:", mockLineId);
+                    currentUser.LineID = mockLineId;
+                    currentUser.Name = "測試管理員";
+                    await syncUserAndEvents();
+                } else {
+                    // 初始化 LINE LIFF
+                    await liff.init({ liffId: LIFF_ID });
+                    if (!liff.isLoggedIn()) {
+                        liff.login();
+                        return;
+                    }
+                    const profile = await liff.getProfile();
+                    currentUser.LineID = profile.userId;
+                    currentUser.Name = profile.displayName;
+                    await syncUserAndEvents();
+                }
+            } catch (error) {
+                console.error("LIFF / 系統載入失敗:", error);
+                Swal.fire({
+                    icon: 'error',
+                    title: '初始化失敗',
+                    text: '請確認您的 LINE 開啟環境，或是 code.gs API Web App 部署是否正確。',
+                    confirmButtonText: '確定'
+                });
+                // 降級載入，啟用 Mock 輔助開發
+                currentUser.LineID = mockLineId;
+                currentUser.Name = "降級模擬者";
+                await syncUserAndEvents();
+            }
+        }
+
+        // 與後端 code.gs 同步使用者權限角色與事件
+        async function syncUserAndEvents() {
+            try {
+                document.getElementById('loadingScreen').classList.remove('hidden');
+                
+                const response = await callGAS('initSystem', { LineID: currentUser.LineID });
+                if (response.status === "success") {
+                    const data = response.data;
+                    currentUser.Role = data.user.role;
+                    currentUser.Status = data.user.status;
+                    allEvents = data.events || [];
+
+                    updateUIByRole();
+                    renderCalendar(currentYear, currentMonth);
+                    renderUpcomingEvents();
+                } else {
+                    throw new Error(response.message);
+                }
+            } catch (err) {
+                console.error("同步失敗:", err);
+                Swal.fire('系統同步異常', err.message, 'error');
+            } finally {
+                document.getElementById('loadingScreen').classList.add('hidden');
+            }
+        }
+
+        // 單獨更新與重新載入事件 (不重新檢查權限)
+        async function loadSystemData() {
+            try {
+                Swal.showLoading();
+                const response = await callGAS('getCalendarEvents', { LineID: currentUser.LineID, Role: currentUser.Role });
+                if (response.status === "success") {
+                    allEvents = response.data || [];
+                    renderCalendar(currentYear, currentMonth);
+                    renderUpcomingEvents();
+                    Swal.close();
+                    Swal.fire({ icon: 'success', title: '更新完成', timer: 1000, showConfirmButton: false });
+                } else {
+                    throw new Error(response.message);
+                }
+            } catch (err) {
+                Swal.fire('更新失敗', err.message, 'error');
+            }
+        }
+
+        // ----------------------------------------------------
+        // 4. 根據使用者角色進行 UI 適配調整
+        // ----------------------------------------------------
+        function updateUIByRole() {
+            // 頂部 Badge 更新
+            const userBadge = document.getElementById('userBadge');
+            const roleDot = document.getElementById('roleDot');
+            const roleLabel = document.getElementById('roleLabel');
+            
+            userBadge.classList.remove('hidden');
+            
+            // 預設關閉所有專屬功能按鈕
+            document.getElementById('btnStudentRequest').classList.add('hidden');
+            document.getElementById('btnCoachAvailable').classList.add('hidden');
+            document.getElementById('btnAdminCreate').classList.add('hidden');
+            document.getElementById('registerSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.add('hidden');
+
+            // 判斷權限狀態
+            if (currentUser.Status === 'None') {
+                document.getElementById('registerSection').classList.remove('hidden');
+                document.getElementById('registerFormBox').classList.remove('hidden');
+                document.getElementById('pendingReviewBox').classList.add('hidden');
+                roleLabel.innerText = "遊客 (未註冊)";
+                roleDot.className = "fa-solid fa-circle text-gray-400 text-[10px]";
+                return;
+            } else if (currentUser.Status === 'Pending') {
+                document.getElementById('registerSection').classList.remove('hidden');
+                document.getElementById('registerFormBox').classList.add('hidden');
+                document.getElementById('pendingReviewBox').classList.remove('hidden');
+                document.getElementById('pendingUid').innerText = currentUser.LineID;
+                roleLabel.innerText = "審核中";
+                roleDot.className = "fa-solid fa-circle text-amber-400 text-[10px]";
+                return;
+            }
+
+            // 已審核通過，顯示功能儀表板
+            document.getElementById('dashboardSection').classList.remove('hidden');
+
+            if (currentUser.Role === 'admin') {
+                roleLabel.innerText = `管理員 | ${currentUser.Name}`;
+                roleDot.className = "fa-solid fa-circle text-purple-400 text-[10px]";
+                document.getElementById('btnAdminCreate').classList.remove('hidden');
+                document.getElementById('btnStudentRequest').classList.remove('hidden');
+                document.getElementById('btnCoachAvailable').classList.remove('hidden');
+            } else if (currentUser.Role === 'coach') {
+                roleLabel.innerText = `教練 | ${currentUser.Name}`;
+                roleDot.className = "fa-solid fa-circle text-emerald-400 text-[10px]";
+                document.getElementById('btnCoachAvailable').classList.remove('hidden');
+            } else {
+                roleLabel.innerText = `學員 | ${currentUser.Name}`;
+                roleDot.className = "fa-solid fa-circle text-blue-400 text-[10px]";
+                document.getElementById('btnStudentRequest').classList.remove('hidden');
+            }
+        }
+
+        // ----------------------------------------------------
+        // 5. 行事曆渲染模組 (Month View Grid)
+        // ----------------------------------------------------
+        function renderCalendar(year, month) {
+            const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
+            document.getElementById('calendarMonthYear').innerText = `${year} 年 ${monthNames[month]}`;
+
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const totalDays = new Date(year, month + 1, 0).getDate();
+            const prevTotalDays = new Date(year, month, 0).getDate();
+
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+
+            // 1. 前面月份的空置格填塞
+            for (let i = firstDayIndex; i > 0; i--) {
+                const prevDay = prevTotalDays - i + 1;
+                const cell = document.createElement('div');
+                cell.className = "text-center text-slate-300 py-2.5 text-xs select-none calendar-grid-cell flex items-center justify-center opacity-40";
+                cell.innerText = prevDay;
+                grid.appendChild(cell);
+            }
+
+            // 2. 當月日期繪製
+            for (let day = 1; day <= totalDays; day++) {
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const cell = document.createElement('div');
+                
+                // 基礎結構
+                cell.className = "relative text-center py-1 select-none calendar-grid-cell flex flex-col items-center justify-between border border-slate-50 rounded-lg hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer";
+                cell.setAttribute('onclick', `openDateModal('${dateString}')`);
+
+                // 判斷今日
+                const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+                
+                // 日期文字標籤
+                const dayLabel = document.createElement('span');
+                dayLabel.className = `text-sm font-semibold w-6 h-6 flex items-center justify-center rounded-full mt-0.5 ${isToday ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200' : 'text-slate-700'}`;
+                dayLabel.innerText = day;
+                cell.appendChild(dayLabel);
+
+                // 計算當日事件數與狀態指示點
+                const dayEvents = allEvents.filter(e => {
+                    if (!e.Date) return false;
+                    // 標準化格式比對
+                    const eventDateStr = formatGASDateString(e.Date);
+                    return eventDateStr === dateString;
+                });
+
+                if (dayEvents.length > 0) {
+                    const dotsContainer = document.createElement('div');
+                    dotsContainer.className = "flex space-x-1 mb-1 justify-center w-full px-1 overflow-hidden";
+                    
+                    // 根據狀態繪製精美小圓點
+                    dayEvents.slice(0, 3).forEach(ev => {
+                        const dot = document.createElement('span');
+                        dot.className = "w-1.5 h-1.5 rounded-full";
+                        if (ev.Status === 'Open') dot.classList.add('bg-blue-500');
+                        else if (ev.Status === 'Full') dot.classList.add('bg-red-500');
+                        else if (ev.Status === 'Available') dot.classList.add('bg-green-500');
+                        else if (ev.Status === 'Requested') dot.classList.add('bg-amber-500');
+                        else dot.classList.add('bg-slate-400');
+                        dotsContainer.appendChild(dot);
+                    });
+                    
+                    // 事件數提示
+                    if (dayEvents.length > 3) {
+                        const plusSign = document.createElement('span');
+                        plusSign.className = "text-[8px] text-slate-400 leading-none";
+                        plusSign.innerText = "+";
+                        dotsContainer.appendChild(plusSign);
+                    }
+                    cell.appendChild(dotsContainer);
+                } else {
+                    // 空白格預留空間避免版面變形
+                    const spacer = document.createElement('div');
+                    spacer.className = "h-1.5 mb-1";
+                    cell.appendChild(spacer);
+                }
+
+                grid.appendChild(cell);
+            }
+
+            // 3. 後面月份的空置格填塞以維持一貫的 6 橫列
+            const totalCells = grid.children.length;
+            const remaining = 42 - totalCells;
+            for (let i = 1; i <= remaining; i++) {
+                const cell = document.createElement('div');
+                cell.className = "text-center text-slate-300 py-2.5 text-xs select-none calendar-grid-cell flex items-center justify-center opacity-40";
+                cell.innerText = i;
+                grid.appendChild(cell);
+            }
+        }
+
+        // 月份切換
+        function changeMonth(direction) {
+            currentMonth += direction;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            } else if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar(currentYear, currentMonth);
+        }
+
+        // ----------------------------------------------------
+        // 6. 核心上浮式詳細行程 Modal 模組
+        // ----------------------------------------------------
+        function openDateModal(selectedDate) {
+            const modal = document.getElementById('dateModal');
+            const content = document.getElementById('modalContent');
+            const title = document.getElementById('modalDateTitle');
+
+            title.innerHTML = `<span>${selectedDate} 日期日程</span>`;
+            content.innerHTML = '';
+
+            // 取得該日期所有事件並排序
+            const dayEvents = allEvents.filter(e => {
+                if (!e.Date) return false;
+                return formatGASDateString(e.Date) === selectedDate;
+            }).sort((a,b) => String(a.TimeRange).localeCompare(String(b.TimeRange)));
+
+            if (dayEvents.length === 0) {
+                content.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-10 text-slate-400">
+                        <i class="fa-solid fa-circle-info text-3xl mb-2 text-slate-300"></i>
+                        <p class="text-sm">本日無任何排程時段</p>
+                        ${currentUser.Role === 'coach' ? `<p class="text-xs text-emerald-600 mt-2 hover:underline cursor-pointer" onclick="quickFillAvailability('${selectedDate}')">+ 點此快速提交本日空檔</p>` : ''}
+                    </div>`;
+            } else {
+                dayEvents.forEach(event => {
+                    // 狀態與樣式配置
+                    let statusBadgeClass = "bg-slate-100 text-slate-600";
+                    let statusText = event.Status;
+                    let borderClass = "border-slate-100";
+
+                    if (event.Status === 'Open') {
+                        statusBadgeClass = "bg-blue-50 text-blue-600 border border-blue-200";
+                        statusText = "開放教練接課 (Open)";
+                        borderClass = "border-l-4 border-l-blue-500";
+                    } else if (event.Status === 'Full') {
+                        statusBadgeClass = "bg-red-50 text-red-600 border border-red-100";
+                        statusText = "預約客滿 (Full)";
+                        borderClass = "border-l-4 border-l-red-500";
+                    } else if (event.Status === 'Available') {
+                        statusBadgeClass = "bg-green-50 text-green-600 border border-green-200";
+                        statusText = "教練填寫空檔 (Available)";
+                        borderClass = "border-l-4 border-l-green-500";
+                    } else if (event.Status === 'Requested') {
+                        statusBadgeClass = "bg-amber-50 text-amber-600 border border-amber-200";
+                        statusText = "學員申請預約中 (Requested)";
+                        borderClass = "border-l-4 border-l-amber-500";
+                    }
+
+                    // 取得接課教練名單
+                    const assignedNames = event.CoachNames ? String(event.CoachNames).split(',').filter(e=>e) : [];
+                    const assignedIds = event.CoachIDs ? String(event.CoachIDs).split(',').filter(e=>e) : [];
+
+                    // 生成時段卡片
+                    const card = document.createElement('div');
+                    card.className = `p-4 bg-slate-50 rounded-2xl shadow-sm border ${borderClass} space-y-3 relative`;
+
+                    // 1. 卡片頂部
+                    const cardHeader = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="font-bold text-slate-800 text-sm leading-tight">${event.CourseName || '教練授課空檔'}</h4>
+                                <span class="text-[10px] px-2 py-0.5 rounded-md font-semibold inline-block mt-1.5 ${statusBadgeClass}">${statusText}</span>
+                            </div>
+                        </div>
+                    `;
+                    card.innerHTML += cardHeader;
+
+                    // 2. 時段/地點/學員/教練資訊
+                    const details = `
+                        <div class="space-y-1.5 text-xs text-slate-600 pt-1">
+                            <div class="flex items-center"><i class="fa-regular fa-clock w-5 text-slate-400"></i>時段：${event.TimeRange}</div>
+                            <div class="flex items-center"><i class="fa-solid fa-location-dot w-5 text-slate-400"></i>場地：${event.Location || '尚未指派球場'}</div>
+                            <div class="flex items-center"><i class="fa-solid fa-user-graduate w-5 text-slate-400"></i>預約學員：${event.StudentName || '待指派學員'}</div>
+                            <div class="flex items-center"><i class="fa-solid fa-user-tie w-5 text-slate-400"></i>上課教練：${assignedNames.length > 0 ? assignedNames.join(', ') : '未指派教練'}</div>
+                        </div>
+                    `;
+                    card.innerHTML += details;
+
+                    // 3. 權限動態動作按鈕 (Action Buttons)
+                    const actionsBox = document.createElement('div');
+                    actionsBox.className = "flex flex-wrap gap-2 pt-2 border-t border-slate-200/50";
+
+                    // A. 教練的操作 (接課 / 取消接課 / 簽到整合)
+                    if (currentUser.Role === 'coach') {
+                        // 1. 簽到功能 (Booked/Matched 且屬於此教練)
+                        if (assignedIds.includes(currentUser.LineID)) {
+                            // 顯示簽到按鈕
+                            const btnSignIn = document.createElement('button');
+                            btnSignIn.className = "bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center space-x-1 hover:bg-emerald-700 active:scale-95 transition-all shadow-sm";
+                            btnSignIn.innerHTML = `<i class="fa-solid fa-clipboard-user mr-1"></i>前往簽到`;
+                            btnSignIn.onclick = () => executeSignIn(event.SlotID, currentUser.LineID);
+                            actionsBox.appendChild(btnSignIn);
+
+                            // 顯示取消接班
+                            const btnCancel = document.createElement('button');
+                            btnCancel.className = "bg-white border border-red-200 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-50 active:scale-95 transition-all";
+                            btnCancel.innerHTML = `<i class="fa-solid fa-ban mr-1"></i>取消接課`;
+                            btnCancel.onclick = () => handleCancelClaim(event.SlotID);
+                            actionsBox.appendChild(btnCancel);
+                        } else {
+                            // 還沒接，如果是 Open，教練可以接課
+                            if (event.Status === 'Open') {
+                                const btnClaim = document.createElement('button');
+                                btnClaim.className = "bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center space-x-1 hover:bg-blue-700 active:scale-95 transition-all";
+                                btnClaim.innerHTML = `<i class="fa-solid fa-hand-holding-hand mr-1"></i>我要接課`;
+                                btnClaim.onclick = () => handleClaimSlot(event.SlotID, event.Location);
+                                actionsBox.appendChild(btnClaim);
+                            }
+                        }
+                    }
+
+                    // B. 學員的操作 (可刪除自己的申請)
+                    if (currentUser.Role === 'student' && event.CreatedBy === currentUser.LineID && event.Status === 'Requested') {
+                        const btnDelete = document.createElement('button');
+                        btnDelete.className = "bg-white border border-red-200 text-red-500 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-red-50 active:scale-95 transition-all";
+                        btnDelete.innerHTML = `<i class="fa-regular fa-trash-can mr-1"></i>撤回申請`;
+                        btnDelete.onclick = () => handleDeleteSlot(event.SlotID);
+                        actionsBox.appendChild(btnDelete);
+                    }
+
+                    // C. 系統管理員 (最高權限：審核申請、指派課程、刪除、簽到)
+                    if (currentUser.Role === 'admin') {
+                        // 1. 審核申請 (如果是 Requested)
+                        if (event.Status === 'Requested') {
+                            const btnApprove = document.createElement('button');
+                            btnApprove.className = "bg-purple-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-purple-700 active:scale-95 transition-all";
+                            btnApprove.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i>核准並開放教練接課`;
+                            btnApprove.onclick = () => handleApproveRequest(event.SlotID);
+                            actionsBox.appendChild(btnApprove);
+                        }
+                        // 2. 指派課程 (如果是 Available 教練空檔)
+                        if (event.Status === 'Available') {
+                            const btnAssign = document.createElement('button');
+                            btnAssign.className = "bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-indigo-700 active:scale-95 transition-all";
+                            btnAssign.innerHTML = `<i class="fa-solid fa-chalkboard-user mr-1"></i>指派學員課表`;
+                            btnAssign.onclick = () => showAdminAssignModal(event.SlotID, event.Location);
+                            actionsBox.appendChild(btnAssign);
+                        }
+                        // 3. 共用管理員刪除時段
+                        const btnAdminDelete = document.createElement('button');
+                        btnAdminDelete.className = "bg-white border border-slate-200 text-slate-500 hover:text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-slate-100 active:scale-95 transition-all";
+                        btnAdminDelete.innerHTML = `<i class="fa-solid fa-trash-can mr-1"></i>刪除`;
+                        btnAdminDelete.onclick = () => handleDeleteSlot(event.SlotID);
+                        actionsBox.appendChild(btnAdminDelete);
+                    }
+
+                    if (actionsBox.children.length > 0) {
+                        card.appendChild(actionsBox);
+                    }
+
+                    content.appendChild(card);
+                });
+            }
+
+            // 執行平滑開啟動畫 (行動裝置 Bottom-sheet 動效)
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.querySelector('.bg-white').classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        function closeDateModal() {
+            const modal = document.getElementById('dateModal');
+            const sheet = modal.querySelector('.bg-white');
+            sheet.classList.add('translate-y-full');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        // ----------------------------------------------------
+        // 7. 本月我的行程列表預覽
+        // ----------------------------------------------------
+        function renderUpcomingEvents() {
+            const container = document.getElementById('upcomingEventsList');
+            container.innerHTML = '';
+
+            // 篩選與當前登入者有關的本月/未來時段
+            const filtered = allEvents.filter(e => {
+                const assignedIds = e.CoachIDs ? String(e.CoachIDs).split(',').filter(x=>x) : [];
+                return currentUser.Role === 'admin' || 
+                       e.CreatedBy === currentUser.LineID || 
+                       assignedIds.includes(currentUser.LineID);
+            }).sort((a,b) => String(a.Date).localeCompare(String(b.Date)) || String(a.TimeRange).localeCompare(String(b.TimeRange)));
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">本月無您相關的課程或空檔安排</p>`;
+                return;
+            }
+
+            filtered.forEach(ev => {
+                const row = document.createElement('div');
+                row.className = "flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all cursor-pointer border border-slate-100";
+                row.setAttribute('onclick', `openDateModal('${formatGASDateString(ev.Date)}')`);
+
+                let statusIcon = `<span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block mr-2"></span>`;
+                if (ev.Status === 'Full') statusIcon = `<span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block mr-2"></span>`;
+                if (ev.Status === 'Available') statusIcon = `<span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block mr-2"></span>`;
+                if (ev.Status === 'Requested') statusIcon = `<span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block mr-2"></span>`;
+
+                row.innerHTML = `
+                    <div class="flex items-center min-w-0">
+                        ${statusIcon}
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold text-slate-800 truncate">${ev.CourseName || '教練空檔'}</p>
+                            <p class="text-[10px] text-slate-500 mt-0.5">${formatGASDateString(ev.Date)} | ${ev.TimeRange}</p>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-300 text-xs pl-2"></i>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        // ----------------------------------------------------
+        // 8. API 各種操作發送 (多端對接)
+        // ----------------------------------------------------
+        
+        // A. 註冊資料送出
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('regName').value.trim();
+            const role = document.getElementById('regRole').value;
+
+            if (!name) return;
+
+            try {
+                Swal.showLoading();
+                const res = await callGAS('register', {
+                    LineID: currentUser.LineID,
+                    Name: name,
+                    Role: role
+                });
+                if (res.status === "success") {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '申請成功',
+                        text: '資料已送出！請通知管理員審核您的帳號權限。',
+                        confirmButtonText: '確定'
+                    }).then(() => {
+                        syncUserAndEvents();
+                    });
+                } else {
+                    throw new Error(res.message);
+                }
+            } catch (error) {
+                Swal.fire('申請失敗', error.message, 'error');
+            }
+        });
+
+        // B. 教練：快速在空日期填入提交
+        function quickFillAvailability(dateStr) {
+            closeDateModal();
+            showSubmitAvailabilityModal();
+            document.getElementById('availDate').value = dateStr;
+        }
+
+        // C. 教練：提交可上課空檔
+        document.getElementById('coachAvailabilityForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const payload = {
+                CoachID: currentUser.LineID,
+                CoachName: currentUser.Name,
+                Date: document.getElementById('availDate').value,
+                TimeRange: document.getElementById('availTimeRange').value.trim(),
+                Location: document.getElementById('availLocation').value.trim()
+            };
+
+            try {
+                Swal.showLoading();
+                const res = await callGAS('submitAvailability', payload);
+                if (res.status === "success") {
+                    closeModal('coachAvailabilityModal');
+                    Swal.fire('提交成功', '您的空檔時段已填寫！', 'success').then(() => {
+                        loadSystemData();
+                    });
+                } else {
+                    throw new Error(res.message);
+                }
+            } catch (err) {
+                Swal.fire('提交失敗', err.message, 'error');
+            }
+        });
+
+        // D. 學員：預約課程申請
+        document.getElementById('studentRequestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const payload = {
+                CreatedBy: currentUser.LineID,
+                CourseType: document.getElementById('reqCourseType').value,
+                StudentName: document.getElementById('reqStudentName').value.trim(),
+                Date: document.getElementById('reqDate').value,
+                TimeRange: document.getElementById('reqTimeRange').value.trim(),
+                Location: document.getElementById('reqLocation').value.trim()
+            };
+
+            try {
+                Swal.showLoading();
+                const res = await callGAS('requestCourse', payload);
+                if (res.status === "success") {
+                    closeModal('studentRequestModal');
+                    Swal.fire('申請成功', '課程預約申請已送出，等待管理員核准！', 'success').then(() => {
+                        loadSystemData();
+                    });
+                } else {
+                    throw new Error(res.message);
+                }
+            } catch (err) {
+                Swal.fire('申請失敗', err.message, 'error');
+            }
+        });
+
+        // E. 管理員：新增排程
+        document.getElementById('adminCreateForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const payload = {
+                CreatedBy: currentUser.LineID,
+                CourseName: document.getElementById('admCourseName').value.trim(),
+                StudentName: document.getElementById('admStudentName').value.trim(),
+                Date: document.getElementById('admDate').value,
+                TimeRange: document.getElementById('admTimeRange').value.trim(),
+                Location: document.getElementById('admLocation').value.trim(),
+                RequiredCoaches: document.getElementById('admRequiredCoaches').value
+            };
+
+            try {
+                Swal.showLoading();
+                const res = await callGAS('createSlot', payload);
+                if (res.status === "success") {
+                    closeModal('adminCreateModal');
+                    Swal.fire('時段建立成功', '已發布新時段！', 'success').then(() => {
+                        loadSystemData();
+                    });
+                } else {
+                    throw new Error(res.message);
+                }
+            } catch (err) {
+                Swal.fire('建立失敗', err.message, 'error');
+            }
+        });
+
+        // F. 管理員：指派課程給空檔教練
+        document.getElementById('adminAssignForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const payload = {
+                OperatedBy: currentUser.LineID,
+                SlotID: document.getElementById('assignSlotId').value,
+                CourseName: document.getElementById('assignCourseName').value.trim(),
+                StudentName: document.getElementById('assignStudentName').value.trim(),
+                Location: document.getElementById('assignLocation').value.trim()
+            };
+
+            try {
+                Swal.showLoading();
+                const res = await callGAS('assignCourseToAvailability', payload);
+                if (res.status === "success") {
+                    closeModal('adminAssignModal');
+                    Swal.fire('指派成功', '教練課表已完成媒合指派！', 'success').then(() => {
+                        loadSystemData();
+                    });
+                } else {
+                    throw new Error(res.message);
+                }
+            } catch (err) {
+                Swal.fire('指派失敗', err.message, 'error');
+            }
+        });
+
+        // G. 教練：我要接課操作 (ACID 與 LockService 保護)
+        async function handleClaimSlot(slotId, currentLocation) {
+            // 教練接單時，防超賣悲觀鎖由後端 LockService 實現
+            const { value: selectedLocation } = await Swal.fire({
+                title: '確認承接這堂課？',
+                text: `請確認或修改上課球場：`,
+                input: 'text',
+                inputValue: currentLocation || '',
+                inputPlaceholder: '請輸入確定上課球場',
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                confirmButtonText: '確定接單',
+                cancelButtonText: '取消',
+                inputValidator: (value) => {
+                    if (!value || !value.trim()) {
+                        return '上課地點為必填規範！';
+                    }
+                }
+            });
+
+            if (selectedLocation) {
+                try {
+                    closeDateModal();
+                    Swal.showLoading();
+                    const res = await callGAS('claimSlot', {
+                        SlotID: slotId,
+                        CoachID: currentUser.LineID,
+                        CoachName: currentUser.Name,
+                        Location: selectedLocation
+                    });
+
+                    if (res.status === 'success') {
+                        Swal.fire('接單成功', '您已成功登錄為此堂課教練！', 'success').then(() => {
+                            loadSystemData();
+                        });
+                    } else {
+                        throw new Error(res.message);
+                    }
+                } catch (err) {
+                    Swal.fire('承接失敗', err.message, 'error');
+                }
+            }
+        }
+
+        // H. 教練：取消接課
+        async function handleCancelClaim(slotId) {
+            const confirm = await Swal.fire({
+                title: '確定取消接課嗎？',
+                text: '取消後此時段會再次開放供其他教練領取。',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                confirmButtonText: '確定取消',
+                cancelButtonText: '關閉'
+            });
+
+            if (confirm.isConfirmed) {
+                try {
+                    closeDateModal();
+                    Swal.showLoading();
+                    const res = await callGAS('cancelClaim', {
+                        SlotID: slotId,
+                        CoachID: currentUser.LineID
+                    });
+
+                    if (res.status === 'success') {
+                        Swal.fire('已取消接課', '您的排程已釋出。', 'success').then(() => {
+                            loadSystemData();
+                        });
+                    } else {
+                        throw new Error(res.message);
+                    }
+                } catch (err) {
+                    Swal.fire('操作失敗', err.message, 'error');
+                }
+            }
+        }
+
+        // I. 管理員 / 學員：刪除時段
+        async function handleDeleteSlot(slotId) {
+            const confirm = await Swal.fire({
+                title: '確定要刪除或撤銷此時段？',
+                text: '此操作不可復原，表格內的該列資料將被徹底移除。',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                confirmButtonText: '確定刪除',
+                cancelButtonText: '取消'
+            });
+
+            if (confirm.isConfirmed) {
+                try {
+                    closeDateModal();
+                    Swal.showLoading();
+                    const res = await callGAS('deleteSlot', {
+                        SlotID: slotId,
+                        OperatedBy: currentUser.LineID
+                    });
+
+                    if (res.status === 'success') {
+                        Swal.fire('已成功刪除', '時段資料已徹底清除。', 'success').then(() => {
+                            loadSystemData();
+                        });
+                    } else {
+                        throw new Error(res.message);
+                    }
+                } catch (err) {
+                    Swal.fire('刪除失敗', err.message, 'error');
+                }
+            }
+        }
+
+        // J. 管理員：審核通過 Requested 課程
+        async function handleApproveRequest(slotId) {
+            try {
+                closeDateModal();
+                Swal.showLoading();
+                const res = await callGAS('approveRequest', {
+                    SlotID: slotId,
+                    OperatedBy: currentUser.LineID
+                });
+
+                if (res.status === 'success') {
+                    Swal.fire('審核成功', '該課程已核准，並已對外開放教練自由接單！', 'success').then(() => {
+                        loadSystemData();
+                    });
+                } else {
+                    throw new Error(res.message);
+                }
+            } catch (err) {
+                Swal.fire('審核失敗', err.message, 'error');
+            }
+        }
+
+        // K. 簽到系統整合 (Crucial Multi-Module Hook)
+        // 使用 BookingID(SlotID) 與 CoachID 串接既有的教練簽到系統
+        function executeSignIn(slotId, coachId) {
+            // 在此帶入您原先完成好的簽到系統連結，或彈出相對應的模組
+            // 這裡將以 BookingID (即 SlotID) 與 CoachID 當作參數跳轉
+            const signInUrl = `https://your-liff-signin-system.example.com?bookingId=${slotId}&coachId=${coachId}`;
+            
+            Swal.fire({
+                title: '準備前往簽到',
+                html: `即將為時段 <b>${slotId}</b> 進行簽到認證。<br><br><span class="text-xs text-slate-400">正在傳輸 BookingID 與 CoachID 參數</span>`,
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                confirmButtonText: '確認跳轉簽到',
+                cancelButtonText: '取消'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // 若在 LINE App 內，可用 liff.openWindow 或直接跳轉
+                    if (liff.isInClient()) {
+                        liff.openWindow({
+                            url: signInUrl,
+                            external: true
+                        });
+                    } else {
+                        window.open(signInUrl, '_blank');
+                    }
+                }
+            });
+        }
+
+        // ----------------------------------------------------
+        // 9. 共用輔助功能
+        // ----------------------------------------------------
+        
+        // POST 傳輸至後端 GAS Web App 的標準化函式
+        async function callGAS(action, data) {
+            try {
+                const response = await fetch(GAS_WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8' // GAS doPost 不支援標準 JSON 預檢，需用 text/plain 繞過 CORS
+                    },
+                    body: JSON.stringify({
+                        action: action,
+                        data: data
+                    })
+                });
+                return await response.json();
+            } catch (err) {
+                console.error(`API ${action} 請求發送錯誤:`, err);
+                throw new Error("無法連接至後端服務，請檢查網路連線或 GAS 網址。");
+            }
+        }
+
+        // 標準化 GAS 日期字串轉換 (處理各種 JS Date 物件格式)
+        function formatGASDateString(dateVal) {
+            if (!dateVal) return "";
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) {
+                // 如果是 YYYY-MM-DD 字串
+                return String(dateVal).split('T')[0];
+            }
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        // 各種動態 Modal 控制
+        function showRequestCourseModal() {
+            document.getElementById('studentRequestModal').classList.remove('hidden');
+            // 預設將日期設為明天
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('reqDate').value = tomorrow.toISOString().split('T')[0];
+        }
+
+        function showSubmitAvailabilityModal() {
+            document.getElementById('coachAvailabilityModal').classList.remove('hidden');
+            document.getElementById('availDate').value = new Date().toISOString().split('T')[0];
+        }
+
+        function showCreateSlotModal() {
+            document.getElementById('adminCreateModal').classList.remove('hidden');
+            document.getElementById('admDate').value = new Date().toISOString().split('T')[0];
+        }
+
+        function showAdminAssignModal(slotId, currentLocation) {
+            document.getElementById('assignSlotId').value = slotId;
+            document.getElementById('assignLocation').value = currentLocation || '';
+            document.getElementById('adminAssignModal').classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+    </script>
+</body>
 </html>
-
-
