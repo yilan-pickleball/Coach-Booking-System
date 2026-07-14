@@ -896,7 +896,10 @@ async function handleAdminSubmit(e) {
         function showCreateSlotModal() { 
             document.getElementById('adminCreateModal').classList.remove('hidden'); 
             document.getElementById('admDate').value = new Date().toISOString().split('T')[0]; 
-            generateTimeOptions();
+    
+            // 確保這裡都有呼叫，這樣選單才會出現！
+            generateTimeOptions(); 
+            generateCoachOptions(); 
         }
 
         function showAdminAssignModal(slotId, loc) { 
