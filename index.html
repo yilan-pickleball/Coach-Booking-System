@@ -902,27 +902,7 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
         // ==========================================
         
         // 1. 學員申請
-        document.getElementById('studentRequestForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const startTime = document.getElementById('reqStartTime').value;
-            const endTime = document.getElementById('reqEndTime').value;
-            if (!startTime || !endTime || startTime >= endTime) return Swal.fire('時段錯誤', '結束時間必須晚於開始時間！', 'warning');
-            
-            try {
-                Swal.showLoading();
-                const res = await callGAS('requestCourse', { 
-                    CreatedBy: currentUser.LineID, 
-                    CourseType: document.getElementById('reqCourseType').value, 
-                    StudentName: document.getElementById('reqStudentName').value.trim(), 
-                    Phone: document.getElementById('reqPhone').value.trim(), 
-                    Date: document.getElementById('reqDate').value, 
-                    TimeRange: `${startTime} - ${endTime}`, 
-                    Location: document.getElementById('reqLocation').value.trim() 
-                });
-                if (res.status === "success") { closeModal('studentRequestModal'); Swal.fire('申請成功', '', 'success').then(() => { loadSystemData(); }); }
-                else { throw new Error(res.message); }
-            } catch (err) { Swal.fire('申請失敗', err.message, 'error'); }
-        });
+       
 
         // 2. 教練送出空檔
         document.getElementById('coachAvailabilityForm').addEventListener('submit', async function(e) {
