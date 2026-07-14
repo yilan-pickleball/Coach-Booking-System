@@ -419,19 +419,19 @@
             pendingBadge.classList.add('hidden');
 
             if (currentUser.RealRole === 'admin' && currentUser.RealStatus === 'Approved') {
-                switcher.innerHTML += `<option value="admin">管理員視角</option>`;
-                switcher.innerHTML += `<option value="coach">教練視角</option>`;
-                switcher.innerHTML += `<option value="student">學員視角</option>`;
+                switcher.innerHTML += `<option value="admin">管理員</option>`;
+                switcher.innerHTML += `<option value="coach">教練</option>`;
+                switcher.innerHTML += `<option value="student">學員</option>`;
             } else if (currentUser.RealRole === 'coach') {
                 if (currentUser.RealStatus === 'Approved') {
-                    switcher.innerHTML += `<option value="coach">教練視角</option>`;
+                    switcher.innerHTML += `<option value="coach">教練</option>`;
                 } else if (currentUser.RealStatus === 'Pending') {
                     // 若審核中，無法選教練視角，並顯示提示 Badge
                     pendingBadge.classList.remove('hidden');
                 }
-                switcher.innerHTML += `<option value="student">學員視角</option>`;
+                switcher.innerHTML += `<option value="student">學員</option>`;
             } else {
-                switcher.innerHTML += `<option value="student">學員視角</option>`;
+                switcher.innerHTML += `<option value="student">學員</option>`;
             }
             switcher.value = currentUser.Role;
         }
