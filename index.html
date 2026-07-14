@@ -810,11 +810,22 @@ document.getElementById('studentRequestForm').addEventListener('submit', async f
         }
 
         function executeSignIn(slotId, coachId) {
-            const url = `https://your-liff-signin-system.example.com?bookingId=${slotId}&coachId=${coachId}`;
-            Swal.fire({ title: '前往簽到', text: `傳輸 BookingID: ${slotId}`, showCancelButton: true, confirmButtonText: '確認跳轉' }).then((res) => {
-                if (res.isConfirmed) { liff.isInClient() ? liff.openWindow({ url: url, external: true }) : window.open(url, '_blank'); }
-            });
-        }
+    // 這裡替換成您提供的簽到頁面網址
+    const url = `https://yilan-pickleball.github.io/coach-signin/?bookingId=${slotId}&coachId=${coachId}`;
+    
+    Swal.fire({ 
+        title: '準備前往簽到', 
+        text: `即將前往簽到頁面，系統已帶入：${slotId}`, 
+        icon: 'info',
+        showCancelButton: true, 
+        confirmButtonText: '確定前往' 
+    }).then((res) => {
+        if (res.isConfirmed) { 
+            // 在 LINE 內使用 liff.openWindow，外部瀏覽器使用 window.open
+            liff.isInClient() ? liff.openWindow({ url: url, external: true }) : window.open(url, '_blank'); 
+        } 
+    });
+}
 
         // ==========================================
         // 統一動態產生時段下拉選單 (為三個身份的表單同時注入選項)
