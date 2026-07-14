@@ -19,7 +19,7 @@
 <body class="bg-gray-50 text-gray-800">
 
   <nav class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
-    <h1 class="text-lg font-bold" id="nav-title">🎾 系統載入中...</h1>
+    <h1 class="text-lg font-bold" id="nav-title">🍪  系統載入中...</h1>
     <div class="flex gap-2 items-center">
       <button id="applyCoachBtn" onclick="applyForCoach()" class="bg-white text-blue-600 px-3 py-1 rounded text-sm font-bold hidden shadow hover:bg-gray-100">申請成為教練</button>
       <select id="roleSelector" class="bg-blue-800 text-white text-sm rounded p-1 border border-blue-500 hidden" onchange="changeRole()"></select>
@@ -77,10 +77,10 @@
       sel.innerHTML = ''; 
 
       if (realDBRole === 'admin' && dbStatus === 'Approved') {
-        sel.add(new Option('👑 總教練視角', 'admin')); sel.add(new Option('🏸 教練視角', 'coach')); sel.add(new Option('👨‍🎓 學員視角', 'student'));
+        sel.add(new Option('💼 總教練視角', 'admin')); sel.add(new Option('👨🏽‍🏫 教練視角', 'coach')); sel.add(new Option('👨‍🎓 學員視角', 'student'));
         currentRole = 'admin'; sel.classList.remove('hidden');
       } else if (realDBRole === 'coach' && dbStatus === 'Approved') {
-        sel.add(new Option('🏸 教練視角', 'coach')); sel.add(new Option('👨‍🎓 學員視角', 'student'));
+        sel.add(new Option('👨🏽‍🏫 教練視角', 'coach')); sel.add(new Option('👨‍🎓 學員視角', 'student'));
         currentRole = 'coach'; sel.classList.remove('hidden');
       } else {
         currentRole = 'student';
@@ -108,7 +108,7 @@
 
     function updateNavTitle() {
       const roleName = { 'admin': '總教練', 'coach': '教練', 'student': '學員' }[currentRole];
-      document.getElementById('nav-title').innerText = `🎾 ${myCoachName} (${roleName})`;
+      document.getElementById('nav-title').innerText = `🍪  ${myCoachName} (${roleName})`;
     }
 
     function changeRole() {
@@ -263,3 +263,5 @@
   </script>
 </body>
 </html>
+
+
